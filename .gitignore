@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Conda / Snakemake
+.snakemake/
+
+# Data / results -- large and regenerable, not committed
+results/
+resources/input/proteins/*
+resources/input/cds/*
+!resources/input/proteins/.gitkeep
+!resources/input/cds/.gitkeep
+
+# DAG images / other generated artifacts
+dag.png
+dag.svg
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

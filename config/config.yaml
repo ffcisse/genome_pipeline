@@ -1,0 +1,25 @@
+# Central configuration for the red algae pipeline.
+#
+# Snakemake loads this automatically because the Snakefile has:
+#   configfile: "config/config.yaml"
+# Every key below becomes available inside any rule as the global `config` dict,
+# e.g. config["output_dir"].
+
+# ---- Input mode ----
+# "existing_dir": point at a directory that already contains one protein FASTA and
+# one CDS FASTA per species (named "<species_id>.fasta", IDs from species_table below).
+# This is the default and always works, regardless of how the files got there --
+# whether you copied them from somewhere, or ran the optional JGI download helper
+# (workflow/scripts/download_from_jgi.sh) and pointed these paths at its output.
+input:
+  mode: existing_dir
+  protein_dir: "resources/input/proteins"
+  cds_dir: "resources/input/cds"
+
+# ---- Species metadata ----
+# One row per species; drives which species IDs the pipeline processes (via wildcards)
+# and how they're labeled (lifestyle/lineage) in downstream summaries and figures.
+species_table: "config/species.tsv"
+
+# ---- Output ----
+output_dir: "results"

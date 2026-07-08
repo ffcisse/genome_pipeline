@@ -1,0 +1,25 @@
+# Conda environment for the analysis rules (qc, parse, protein_properties,
+# cds_properties, summaries, visuals).
+#
+# Why per-rule conda envs: when Snakemake runs with --use-conda, it creates and
+# activates one of these environments automatically before running that specific
+# rule's command -- so every rule gets exactly the dependencies it needs, pinned to
+# specific versions, without you having to manually activate anything or worry
+# about one rule's dependencies clashing with another's. The environment is created
+# once (cached by content hash) and reused on every subsequent run.
+#
+# Right now every rule shares this one env because they all need the same handful
+# of packages. As the pipeline grows, a rule with different/heavier dependencies
+# (e.g. the dashboard) can get its own env file without touching this one.
+name: analysis
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - biopython
+  - pandas
+  - numpy
+  - scipy
+  - matplotlib
+  - seaborn

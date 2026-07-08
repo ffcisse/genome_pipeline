@@ -1,0 +1,41 @@
+"""
+Entry point for the red algae comparative pipeline.
+
+Snakemake reads this file top-to-bottom to build its rule graph:
+  1. `configfile:` loads config/config.yaml into the global `config` dict.
+  2. We read config/species.tsv to get the list of species IDs -- this becomes the
+     set of values Snakemake will substitute for the `{species}` wildcard.
+  3. `rule all` lists every *final* output we want. Snakemake works backwards from
+     there: for each missing file, it looks for a rule whose `output` matches, then
+     recurses into *that* rule's `input`, and so on, until every input either exists
+     or there's no rule left that could produce it. That backwards search is how the
+     DAG (directed acyclic graph) of jobs gets built -- you never say "run qc, then
+     parse, then..." yourself, you just declare each rule's input/output and
+     Snakemake figures out the order and what can run in parallel.
+  4. `include:` pulls in the actual rule definitions from workflow/rules/*.smk.
+     Included files share the same namespace as this Snakefile, so they can freely
+     use `config`, `OUTDIR`, and `SPECIES` without importing anything.
+"""
+
+configfile: "config/config.yaml"
+
+import pandas as pd
+
+species_df = pd.read_csv(config["species_table"], sep="\t")
+SPECIES = species_df["species_id"].tolist()
+
+OUTDIR = config["output_dir"]
+
+rule all:
+    # The default target: running plain `snakemake` (no arguments) asks Snakemake to
+    # produce this file, which pulls in the entire dependency chain behind it.
+    input:
+        OUTDIR + "/dashboard/dashboard.done",
+
+include: "rules/qc.smk"
+include: "rules/parse.smk"
+include: "rules/protein_properties.smk"
+include: "rules/cds_properties.smk"
+include: "rules/summaries.smk"
+include: "rules/visuals.smk"
+include: "rules/dashboard.smk"
