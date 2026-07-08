@@ -1,28 +1,34 @@
-# Red Algae Comparative Pipeline
+# Genome Comparison Pipeline
 
-Reproducible Snakemake pipeline for comparative genomics of 9 red algae (Rhodophyta) proteomes:
-6 extremophiles (Cyanidiales: `Cyamer1`, `CyamerSoos_1_1`, `Cyanyang1`; *Galdieria*: `Galph1_1`,
-`Galsul1`, `Galyel1`) and 3 mesophiles (`Porcrue1`, `Porpu1328_1`, `Rhomari1`). Refactors
-validated exploratory-notebook analysis into modular, reproducible pipeline stages.
+Reproducible Snakemake pipeline for comparative genomics: given a set of genomes' protein + CDS
+FASTA files, it computes per-protein and per-gene properties, cross-genome summary statistics,
+and figures (and, later, an interactive dashboard). The pipeline itself is genome-agnostic --
+edit `config/genomes.tsv` and point the input directories at new FASTA files to run it on a
+different set of genomes.
+
+**Current example dataset:** 9 red algae (Rhodophyta) proteomes from a lifestyle-comparison
+study -- 6 extremophiles (Cyanidiales: `Cyamer1`, `CyamerSoos_1_1`, `Cyanyang1`; *Galdieria*:
+`Galph1_1`, `Galsul1`, `Galyel1`) and 3 mesophiles (`Porcrue1`, `Porpu1328_1`, `Rhomari1`).
+Refactors validated exploratory-notebook analysis into modular, reproducible pipeline stages.
 
 **Status: scaffold phase.** Rules declare inputs/outputs and wire the pipeline's dependency
 graph; none contain real analysis logic yet (Phase 1 adds that -- see bottom of this file).
 
 ## Planned stages
-1. `qc` -- input FASTA quality checks (per species)
-2. `parse` -- parse protein + CDS FASTA into canonical tables (per species)
-3. `protein_properties` -- physicochemical properties per protein (per species)
-4. `cds_properties` -- GC/GC3/codon usage/ENC per gene (per species)
-5. `summaries` -- cross-species summary tables (all species)
-6. `visuals` -- summary figures (all species)
+1. `qc` -- input FASTA quality checks (per genome)
+2. `parse` -- parse protein + CDS FASTA into canonical tables (per genome)
+3. `protein_properties` -- physicochemical properties per protein (per genome)
+4. `cds_properties` -- GC/GC3/codon usage/ENC per gene (per genome)
+5. `summaries` -- cross-genome summary tables (all genomes)
+6. `visuals` -- summary figures (all genomes)
 7. `dashboard` -- interactive dashboard (deferred; empty rule for now)
 
 ## How to run
 
 ### 1. Get input data
 Point `config/config.yaml`'s `input.protein_dir` / `input.cds_dir` at a directory containing one
-protein FASTA and one CDS FASTA per species, named `<species_id>.fasta` (species IDs from
-`config/species.tsv`).
+protein FASTA and one CDS FASTA per genome, named `<genome_id>.fasta` (genome IDs from
+`config/genomes.tsv`).
 
 Don't have the files yet? See `workflow/scripts/download_from_jgi.sh` -- an **optional**,
 standalone helper for downloading from JGI Mycocosm. It is NOT part of this pipeline's DAG and
@@ -57,9 +63,9 @@ See [`SLURM.md`](SLURM.md) for the executor-plugin setup and submission command.
 
 ## Repo layout
 ```
-config/              Config file + species metadata table
+config/              Config file + genome metadata table
   config.yaml
-  species.tsv
+  genomes.tsv
 workflow/
   Snakefile          Entry point: loads config, defines rule all, includes rule files
   rules/             One .smk file per pipeline stage
@@ -72,6 +78,6 @@ SLURM.md             DORI/SLURM execution notes
 
 ## Phase 1 (next)
 Replace the `touch`-only rule bodies with real logic ported from the validated exploratory
-notebooks: actual FASTA parsing, the physicochemical/CDS property calculations, cross-species
+notebooks: actual FASTA parsing, the physicochemical/CDS property calculations, cross-genome
 summary statistics (effect sizes, phylogenetic-sensitivity checks), and the summary figures.
 Dashboard internals come later, after Phase 1 lands.

@@ -1,10 +1,17 @@
 """
-Entry point for the red algae comparative pipeline.
+Entry point for the genome comparison pipeline.
+
+Genome-agnostic by design: it processes whatever genomes are listed in
+config/genomes.tsv, computing protein + CDS properties, cross-genome summaries,
+and figures for each. The current example dataset happens to be 9 red algae
+from a lifestyle-comparison study, but nothing here assumes that -- point
+genome_table and the input directories at a different set of genomes/proteomes
+and the same rules apply unchanged.
 
 Snakemake reads this file top-to-bottom to build its rule graph:
   1. `configfile:` loads config/config.yaml into the global `config` dict.
-  2. We read config/species.tsv to get the list of species IDs -- this becomes the
-     set of values Snakemake will substitute for the `{species}` wildcard.
+  2. We read config/genomes.tsv to get the list of genome IDs -- this becomes the
+     set of values Snakemake will substitute for the `{genome}` wildcard.
   3. `rule all` lists every *final* output we want. Snakemake works backwards from
      there: for each missing file, it looks for a rule whose `output` matches, then
      recurses into *that* rule's `input`, and so on, until every input either exists
@@ -14,15 +21,15 @@ Snakemake reads this file top-to-bottom to build its rule graph:
      Snakemake figures out the order and what can run in parallel.
   4. `include:` pulls in the actual rule definitions from workflow/rules/*.smk.
      Included files share the same namespace as this Snakefile, so they can freely
-     use `config`, `OUTDIR`, and `SPECIES` without importing anything.
+     use `config`, `OUTDIR`, and `GENOMES` without importing anything.
 """
 
 configfile: "config/config.yaml"
 
 import pandas as pd
 
-species_df = pd.read_csv(config["species_table"], sep="\t")
-SPECIES = species_df["species_id"].tolist()
+genome_df = pd.read_csv(config["genome_table"], sep="\t")
+GENOMES = genome_df["genome_id"].tolist()
 
 OUTDIR = config["output_dir"]
 

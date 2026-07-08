@@ -1,4 +1,4 @@
-species_id	species_name	lifestyle	lineage
+genome_id	name	group	subgroup
 Cyamer1	Cyanidioschyzon merolae	extremophile	Cyanidiales
 CyamerSoos_1_1	Cyanidioschyzon merolae (Soos strain)	extremophile	Cyanidiales
 Cyanyang1	Cyanidiococcus yangmingshanensis	extremophile	Cyanidiales

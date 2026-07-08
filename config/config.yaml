@@ -1,4 +1,4 @@
-# Central configuration for the red algae pipeline.
+# Central configuration for the genome comparison pipeline.
 #
 # Snakemake loads this automatically because the Snakefile has:
 #   configfile: "config/config.yaml"
@@ -7,7 +7,7 @@
 
 # ---- Input mode ----
 # "existing_dir": point at a directory that already contains one protein FASTA and
-# one CDS FASTA per species (named "<species_id>.fasta", IDs from species_table below).
+# one CDS FASTA per genome (named "<genome_id>.fasta", IDs from genome_table below).
 # This is the default and always works, regardless of how the files got there --
 # whether you copied them from somewhere, or ran the optional JGI download helper
 # (workflow/scripts/download_from_jgi.sh) and pointed these paths at its output.
@@ -16,10 +16,13 @@ input:
   protein_dir: "resources/input/proteins"
   cds_dir: "resources/input/cds"
 
-# ---- Species metadata ----
-# One row per species; drives which species IDs the pipeline processes (via wildcards)
-# and how they're labeled (lifestyle/lineage) in downstream summaries and figures.
-species_table: "config/species.tsv"
+# ---- Genome metadata ----
+# One row per genome; drives which genome IDs the pipeline processes (via wildcards)
+# and how they're labeled (group/subgroup) in downstream summaries and figures.
+# The `group`/`subgroup` columns are free-form -- use them for whatever grouping
+# matters for your dataset (the current example data uses them for lifestyle and
+# lineage in a red algae study, but nothing about the pipeline assumes that).
+genome_table: "config/genomes.tsv"
 
 # ---- Output ----
 output_dir: "results"
