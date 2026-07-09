@@ -14,6 +14,10 @@ resources/input/cds/*
 !resources/input/proteins/.gitkeep
 !resources/input/cds/.gitkeep
 
+# SLURM job logs
+logs/*
+!logs/.gitkeep
+
 # DAG images / other generated artifacts
 dag.png
 dag.svg
