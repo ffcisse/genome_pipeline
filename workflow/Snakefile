@@ -26,6 +26,9 @@ Snakemake reads this file top-to-bottom to build its rule graph:
 
 configfile: "config/config.yaml"
 
+import glob
+import os
+
 import pandas as pd
 
 genome_df = pd.read_csv(config["genome_table"], sep="\t")
@@ -33,12 +36,60 @@ GENOMES = genome_df["genome_id"].tolist()
 
 OUTDIR = config["output_dir"]
 
+# ---- Resolve staged input paths ----
+# PROTEIN_STAGED / CDS_STAGED map genome_id -> the file qc/parse should read.
+# Default (no staging configured): protein_dir/cds_dir already contain flat
+# "<genome_id>.fasta" files -- the pipeline's baseline contract.
+#
+# With staging.source_dir set, real files live nested under
+# source_dir/{proteome_files,cds_files}/<genome_id>/**/*.fasta* with varying
+# extensions (.fasta.gz or .fasta.tar.gz -- see config.yaml). We resolve the
+# real extension now, from source_dir (which already exists on disk,
+# regardless of whether stage_inputs has run yet), so the staged path -- and
+# therefore every rule's input -- is known at DAG-build time without needing a
+# Snakemake checkpoint.
+PROTEIN_DIR = config["input"]["protein_dir"]
+CDS_DIR = config["input"]["cds_dir"]
+STAGING_SOURCE_DIR = config.get("staging", {}).get("source_dir")
+
+
+def _discover_source(category, genome):
+    """Find the single real FASTA (any *.fasta* extension) for one genome
+    under source_dir/<category>/<genome>/, and return (path, extension)."""
+    pattern = os.path.join(STAGING_SOURCE_DIR, category, genome, "**", "*.fasta*")
+    matches = sorted(glob.glob(pattern, recursive=True))
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected exactly one *.fasta* file for genome '{genome}' under "
+            f"{os.path.join(STAGING_SOURCE_DIR, category, genome)}, found {len(matches)}: {matches}"
+        )
+    src = matches[0]
+    ext = src[src.index(".fasta"):]
+    return src, ext
+
+
+if STAGING_SOURCE_DIR:
+    PROTEIN_SOURCE, CDS_SOURCE = {}, {}
+    PROTEIN_STAGED, CDS_STAGED = {}, {}
+    for _genome in GENOMES:
+        psrc, pext = _discover_source("proteome_files", _genome)
+        csrc, cext = _discover_source("cds_files", _genome)
+        PROTEIN_SOURCE[_genome] = psrc
+        CDS_SOURCE[_genome] = csrc
+        PROTEIN_STAGED[_genome] = f"{PROTEIN_DIR}/{_genome}{pext}"
+        CDS_STAGED[_genome] = f"{CDS_DIR}/{_genome}{cext}"
+else:
+    PROTEIN_STAGED = {g: f"{PROTEIN_DIR}/{g}.fasta" for g in GENOMES}
+    CDS_STAGED = {g: f"{CDS_DIR}/{g}.fasta" for g in GENOMES}
+
 rule all:
     # The default target: running plain `snakemake` (no arguments) asks Snakemake to
     # produce this file, which pulls in the entire dependency chain behind it.
     input:
         OUTDIR + "/dashboard/dashboard.done",
 
+if STAGING_SOURCE_DIR:
+    include: "rules/staging.smk"
 include: "rules/qc.smk"
 include: "rules/parse.smk"
 include: "rules/protein_properties.smk"

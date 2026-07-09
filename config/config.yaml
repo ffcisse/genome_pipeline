@@ -16,6 +16,22 @@ input:
   protein_dir: "resources/input/proteins"
   cds_dir: "resources/input/cds"
 
+# ---- Input staging (optional) ----
+# If your protein_dir/cds_dir aren't already flat "<genome_id>.fasta" files --
+# e.g. real Mycocosm downloads, which land nested several directories deep and
+# gzipped (sometimes gzipped-tarred) -- point source_dir at the root of that
+# download tree and the `stage_inputs` rule will symlink each genome's real
+# file into protein_dir/cds_dir as "<genome_id>.fasta.gz" or
+# "<genome_id>.fasta.tar.gz" (real extension preserved, no decompression/copy).
+# Expected layout under source_dir: proteome_files/<genome_id>/**/*.fasta* and
+# cds_files/<genome_id>/**/*.fasta*, exactly one match per genome per category.
+#
+# Leave source_dir unset (or delete this whole block) if protein_dir/cds_dir
+# already contain flat "<genome_id>.fasta" files -- stage_inputs is skipped
+# entirely and qc/parse read directly from protein_dir/cds_dir, as before.
+staging:
+  source_dir: "/clusterfs/jgi/groups/science/homes/ffcisse/enc_analysis"
+
 # ---- Genome metadata ----
 # One row per genome; drives which genome IDs the pipeline processes (via wildcards)
 # and how they're labeled (group/subgroup) in downstream summaries and figures.
