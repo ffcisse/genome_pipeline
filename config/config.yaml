@@ -23,14 +23,22 @@ input:
 # download tree and the `stage_inputs` rule will symlink each genome's real
 # file into protein_dir/cds_dir as "<genome_id>.fasta.gz" or
 # "<genome_id>.fasta.tar.gz" (real extension preserved, no decompression/copy).
-# Expected layout under source_dir: proteome_files/<genome_id>/**/*.fasta* and
-# cds_files/<genome_id>/**/*.fasta*, exactly one match per genome per category.
+# Expected layout under source_dir: <protein_subdir>/<genome_id>/**/*.fasta*
+# and <cds_subdir>/<genome_id>/**/*.fasta*, exactly one match per genome per
+# category. protein_subdir/cds_subdir default to "proteome_files"/"cds_files"
+# (this deployment's convention) -- change them if your download tree names
+# those top-level folders differently.
 #
 # Leave source_dir unset (or delete this whole block) if protein_dir/cds_dir
 # already contain flat "<genome_id>.fasta" files -- stage_inputs is skipped
 # entirely and qc/parse read directly from protein_dir/cds_dir, as before.
+#
+# source_dir is user/deployment-specific -- point it at wherever YOUR raw
+# downloads live.
 staging:
   source_dir: "/clusterfs/jgi/groups/science/homes/ffcisse/enc_analysis"
+  protein_subdir: "proteome_files"
+  cds_subdir: "cds_files"
 
 # ---- Genome metadata ----
 # One row per genome; drives which genome IDs the pipeline processes (via wildcards)
@@ -42,3 +50,15 @@ genome_table: "config/genomes.tsv"
 
 # ---- Output ----
 output_dir: "results"
+
+# ---- SLURM submission (optional) ----
+# Read by workflow/scripts/submit_phase1.sh, which passes these as `sbatch`
+# CLI flags (account/QOS/partition/notification email are cluster- and
+# user-specific, so they live here rather than in the .sbatch script itself).
+# Not read by Snakemake or any pipeline rule -- only by the submit wrapper.
+# Leave partition empty if your cluster doesn't require one (DORI doesn't).
+slurm:
+  account: "grp-org-sc-fungal"
+  qos: "jgi_normal"
+  partition: ""
+  mail_user: "ffcisse@berkeley.edu"

@@ -42,15 +42,18 @@ OUTDIR = config["output_dir"]
 # "<genome_id>.fasta" files -- the pipeline's baseline contract.
 #
 # With staging.source_dir set, real files live nested under
-# source_dir/{proteome_files,cds_files}/<genome_id>/**/*.fasta* with varying
-# extensions (.fasta.gz or .fasta.tar.gz -- see config.yaml). We resolve the
-# real extension now, from source_dir (which already exists on disk,
-# regardless of whether stage_inputs has run yet), so the staged path -- and
-# therefore every rule's input -- is known at DAG-build time without needing a
-# Snakemake checkpoint.
+# source_dir/<protein_subdir>/<cds_subdir>/<genome_id>/**/*.fasta* with
+# varying extensions (.fasta.gz or .fasta.tar.gz -- see config.yaml). We
+# resolve the real extension now, from source_dir (which already exists on
+# disk, regardless of whether stage_inputs has run yet), so the staged path
+# -- and therefore every rule's input -- is known at DAG-build time without
+# needing a Snakemake checkpoint.
 PROTEIN_DIR = config["input"]["protein_dir"]
 CDS_DIR = config["input"]["cds_dir"]
-STAGING_SOURCE_DIR = config.get("staging", {}).get("source_dir")
+_staging_config = config.get("staging", {})
+STAGING_SOURCE_DIR = _staging_config.get("source_dir")
+STAGING_PROTEIN_SUBDIR = _staging_config.get("protein_subdir", "proteome_files")
+STAGING_CDS_SUBDIR = _staging_config.get("cds_subdir", "cds_files")
 
 
 def _discover_source(category, genome):
@@ -72,8 +75,8 @@ if STAGING_SOURCE_DIR:
     PROTEIN_SOURCE, CDS_SOURCE = {}, {}
     PROTEIN_STAGED, CDS_STAGED = {}, {}
     for _genome in GENOMES:
-        psrc, pext = _discover_source("proteome_files", _genome)
-        csrc, cext = _discover_source("cds_files", _genome)
+        psrc, pext = _discover_source(STAGING_PROTEIN_SUBDIR, _genome)
+        csrc, cext = _discover_source(STAGING_CDS_SUBDIR, _genome)
         PROTEIN_SOURCE[_genome] = psrc
         CDS_SOURCE[_genome] = csrc
         PROTEIN_STAGED[_genome] = f"{PROTEIN_DIR}/{_genome}{pext}"
