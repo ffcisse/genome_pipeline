@@ -16,7 +16,7 @@ rule summaries:
     """
     input:
         protein=expand(
-            OUTDIR + "/protein_properties/{genome}.properties.done", genome=GENOMES
+            OUTDIR + "/protein_properties/{genome}/protein_properties.csv", genome=GENOMES
         ),
         cds=expand(OUTDIR + "/cds_properties/{genome}.properties.done", genome=GENOMES),
     output:
