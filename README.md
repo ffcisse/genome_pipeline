@@ -11,9 +11,9 @@ study -- 6 extremophiles (Cyanidiales: `Cyamer1`, `CyamerSoos_1_1`, `Cyanyang1`;
 `Galph1_1`, `Galsul1`, `Galyel1`) and 3 mesophiles (`Porcrue1`, `Porpu1328_1`, `Rhomari1`).
 Refactors validated exploratory-notebook analysis into modular, reproducible pipeline stages.
 
-**Status: Phase 1 in progress.** `stage_inputs`, `qc`, and `parse` now contain real logic (see
-`workflow/scripts/`); `protein_properties`, `cds_properties`, `summaries`, `visuals`, and
-`dashboard` are still `touch`-only stubs from the Phase 0 scaffold (see bottom of this file).
+**Status: Phase 2a done.** `stage_inputs`, `qc`, `parse`, and `protein_properties` now contain
+real logic (see `workflow/scripts/`); `cds_properties`, `summaries`, `visuals`, and `dashboard`
+are still `touch`-only stubs from the Phase 0 scaffold (see bottom of this file).
 
 ## Planned stages
 0. `stage_inputs` -- **done.** Symlink real per-genome FASTA into a flat layout (optional; only
@@ -22,7 +22,11 @@ Refactors validated exploratory-notebook analysis into modular, reproducible pip
    `results/qc/<genome_id>.qc.done`
 2. `parse` -- **done.** Parse protein + CDS FASTA into canonical tables (per genome) --
    `results/parsed/<genome_id>/protein_table.csv` and `.../cds_table.csv`
-3. `protein_properties` -- *stub.* Physicochemical properties per protein (per genome)
+3. `protein_properties` -- **done (Phase 2a).** Lightweight per-protein physicochemical
+   properties (composition, pI/GRAVY, aliphatic index, instability, charge, aggregation
+   propensity -- no intrinsic disorder, that's Phase 2b) -- `results/protein_properties/
+   <genome_id>/protein_properties.csv`. Intrinsic disorder prediction lands separately in Phase
+   2b as its own (heavier, SLURM-per-genome) rule.
 4. `cds_properties` -- *stub.* GC/GC3/codon usage/ENC per gene (per genome)
 5. `summaries` -- *stub.* Cross-genome summary tables (all genomes)
 6. `visuals` -- *stub.* Summary figures (all genomes)
@@ -73,10 +77,12 @@ results/qc/<genome_id>.qc.done`) or a small subset, but a full run belongs in a 
 below) so it doesn't compete with other users' interactive work.
 
 ### 6. Run on DORI (SLURM)
-See [`SLURM.md`](SLURM.md) for the executor-plugin setup and submission command. For just the
-Phase 1 stages (staging/qc/parse), `workflow/scripts/submit_phase1.sh` submits a single sbatch
-job, configured via `config/config.yaml`'s `slurm:` block (requires PyYAML in whichever `python3`
-is on `PATH` -- already satisfied if you followed step 2, since it's a Snakemake dependency).
+See [`SLURM.md`](SLURM.md) for the executor-plugin setup and submission command. For the full
+dataset, `workflow/scripts/submit_phase1.sh` / `submit_phase2a.sh` each submit a single sbatch
+job (staging/qc/parse, and protein_properties, respectively), configured via `config/config.yaml`'s
+`slurm:` block (requires PyYAML in whichever `python3` is on `PATH` -- already satisfied if you
+followed step 2, since it's a Snakemake dependency). Both run `snakemake` with no explicit
+target, so each one also picks up any earlier stage that isn't done yet.
 
 ## Repo layout
 ```
@@ -107,18 +113,18 @@ The pipeline runs on any set of genomes by editing **config only** -- `config/co
 | `staging.source_dir` | `config/config.yaml` | Optional: root of a nested/gzipped download tree to symlink from |
 | `staging.protein_subdir` / `staging.cds_subdir` | `config/config.yaml` | Optional: top-level folder names under `source_dir` (default `proteome_files`/`cds_files` -- this deployment's convention, not a standard) |
 | `output_dir` | `config/config.yaml` | Where results land |
-| `slurm.account` / `slurm.qos` / `slurm.partition` / `slurm.mail_user` | `config/config.yaml` | Used by `workflow/scripts/submit_phase1.sh` to submit the Phase 1 sbatch job |
+| `slurm.account` / `slurm.qos` / `slurm.partition` / `slurm.mail_user` | `config/config.yaml` | Used by `workflow/scripts/submit_phase1.sh`/`submit_phase2a.sh` to submit their sbatch jobs |
 
 **Legitimately environment/deployment-specific (documented, not config knobs):**
 - **The cluster itself** (DORI, SLURM) -- `SLURM.md`, and the `--executor slurm` setup, assume
   a SLURM scheduler. A different site means different scheduler commands throughout, not just a
   config value.
-- **Conda/environment bootstrapping** in `workflow/scripts/run_phase1.sbatch` -- it tries `PATH`
-  first, and only falls back to sourcing `~/anaconda3/etc/profile.d/conda.sh` (overridable via
-  `$CONDA_BASE`) if `snakemake` isn't already on `PATH`. How conda/mamba/modules get initialized
-  varies by site and happens before any Python/YAML config can be read, so it can't be fully
-  config-driven -- if your site's conda lives somewhere else or uses modules, edit that one
-  fallback line.
+- **Conda/environment bootstrapping** in `workflow/scripts/run_phase1.sbatch` and
+  `run_phase2a.sbatch` -- both try `PATH` first, and only fall back to sourcing
+  `~/anaconda3/etc/profile.d/conda.sh` (overridable via `$CONDA_BASE`) if `snakemake` isn't
+  already on `PATH`. How conda/mamba/modules get initialized varies by site and happens before
+  any Python/YAML config can be read, so it can't be fully config-driven -- if your site's conda
+  lives somewhere else or uses modules, edit that one fallback line (in both files).
 - **`workflow/scripts/download_from_jgi.sh`** -- an optional, standalone helper that must run on
   Perlmutter/DTN (JGI's download infrastructure requirement), not wherever the rest of the
   pipeline runs. Not part of the DAG; skip it entirely if you already have FASTA files.
@@ -147,9 +153,12 @@ That's it -- `workflow/Snakefile` reads `GENOMES` from `genomes.tsv` and drives 
 that list, so no rule file needs touching. If submitting via SLURM, also update
 `config/config.yaml`'s `slurm:` block (account/QOS/partition/mail_user) for your allocation.
 
-## Phase 1 (in progress)
+## Phase 1 / Phase 2a (done) / Phase 2b (next)
 Replacing the `touch`-only rule bodies with real logic ported from the validated exploratory
 notebooks. Done: input staging (symlinks), `qc` (real FASTA quality checks), `parse` (FASTA ->
-`protein_table.csv`/`cds_table.csv`). Remaining: the physicochemical/CDS property calculations,
-cross-genome summary statistics (effect sizes, phylogenetic-sensitivity checks), and the summary
-figures. Dashboard internals come later, after Phase 1 lands.
+`protein_table.csv`/`cds_table.csv`), `protein_properties` (Phase 2a -- lightweight
+physicochemical properties, `workflow/scripts/protein_properties.py`). Remaining: intrinsic
+disorder prediction (Phase 2b -- heavy, its own SLURM-per-genome rule, reads
+`protein_properties.csv` and adds a disorder column), CDS property calculations, cross-genome
+summary statistics (effect sizes, phylogenetic-sensitivity checks), and the summary figures.
+Dashboard internals come later.

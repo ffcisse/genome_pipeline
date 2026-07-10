@@ -32,24 +32,29 @@ snakemake --executor slurm --jobs 20 --use-conda
 - `--use-conda` -- activate each rule's declared conda env (workflow/envs/) before it runs.
 
 ## Quick option: one sbatch job running Snakemake locally
-For light workloads (e.g. Phase 1's qc/parse stages -- 9 small proteomes, single-pass FASTA
-parsing) it's not worth the executor-plugin's per-rule job submission overhead. Instead,
-`workflow/scripts/run_phase1.sbatch` requests one modest allocation and runs
-`snakemake --cores $SLURM_CPUS_PER_TASK --use-conda` locally inside it. Submit it via the
-wrapper, not `sbatch` directly:
+For light workloads (e.g. Phase 1's qc/parse stages, or Phase 2a's protein_properties -- 9 small
+proteomes, all single-core/single-pass work) it's not worth the executor-plugin's per-rule job
+submission overhead. Instead, `workflow/scripts/run_phase1.sbatch` (Phase 1) and
+`run_phase2a.sbatch` (Phase 2a) each request one modest allocation and run
+`snakemake --cores $SLURM_CPUS_PER_TASK --use-conda` locally inside it -- with no explicit
+target, so each one also picks up any earlier stage that isn't done yet, not just its own. Submit
+via the wrapper, not `sbatch` directly:
 ```bash
 workflow/scripts/submit_phase1.sh
+workflow/scripts/submit_phase2a.sh
 ```
-The wrapper reads `config/config.yaml`'s `slurm:` block (account/QOS/partition/mail_user) and
+Each wrapper reads `config/config.yaml`'s `slurm:` block (account/QOS/partition/mail_user) and
 passes them as `sbatch` CLI flags -- so pointing this at a different allocation or cluster is a
 config edit, not a script edit. (`sbatch workflow/scripts/run_phase1.sbatch` still works
 directly, just without an account/QOS/mail-user unless your site has defaults for them.)
 
-Logs land in `logs/phase1_<jobid>.{out,err}`. Switch to the `--executor slurm` model above
-once a stage's per-genome runtime/memory actually warrants separate jobs (e.g. the disorder
-prediction step planned for `protein_properties`) -- at that point, account/QOS/partition for
-*that* model belong in a workflow profile (`config/slurm_profile/config.yaml`, see below), which
-is the Snakemake-native equivalent of this wrapper for the per-rule submission model.
+Logs land in `logs/phase1_<jobid>.{out,err}` / `logs/phase2a_<jobid>.{out,err}`. Switch to the
+`--executor slurm` model above once a stage's per-genome runtime/memory actually warrants
+separate jobs -- e.g. Phase 2b's planned intrinsic disorder prediction rule, which is heavy
+enough (unlike everything in Phase 1/2a) to need its own per-genome SLURM resources rather than
+running inline in one shared allocation. At that point, account/QOS/partition for *that* model
+belong in a workflow profile (`config/slurm_profile/config.yaml`, see below), which is the
+Snakemake-native equivalent of this wrapper for the per-rule submission model.
 
 ## Optional: a workflow profile
 Instead of retyping flags every time, you can put them in `config/slurm_profile/config.yaml`
