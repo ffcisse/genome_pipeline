@@ -10,8 +10,15 @@ df["sequence"].apply(...) calls), to minimize any chance of silently
 diverging from the validated notebook output.
 
 Do not change formulas/thresholds here without updating and re-validating
-against the notebook -- see the Phase 2a commit messages for proposed
-(NOT applied) accuracy/efficiency improvements to consider separately.
+against the notebook.
+
+Two performance optimizations are applied in compute_properties() (see
+amino_acid_composition_fast and calculate_core_biopython_properties below):
+Counter-based composition counting, and a single shared ProteinAnalysis
+instance for pI/gravy/instability/net_charge instead of reconstructing it
+per property. Both are provably output-identical to the original ported
+functions (which are kept, unchanged, as the reference implementation) --
+see the "optimization" commit for the benchmark/equivalence check.
 
 Deliberately excludes intrinsic disorder prediction (heavy, Phase 2b, its
 own SLURM rule) and CDS-derived properties (GC/GC3/codon usage/ENC, a
@@ -28,6 +35,7 @@ Property groups (built incrementally, one per Phase 2a commit):
 import argparse
 import os
 import sys
+from collections import Counter
 
 import pandas as pd
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
@@ -52,7 +60,12 @@ aa_groups = {
 
 
 def amino_acid_composition(seq: str) -> dict:
-    """Return fraction of residues in each chemical group (uses raw sequence, only strips '*')."""
+    """Return fraction of residues in each chemical group (uses raw sequence, only strips '*').
+
+    Reference implementation -- ported unchanged from the notebook. Kept as
+    the validated spec; compute_properties() uses the Counter-based
+    amino_acid_composition_fast below instead (same output, one pass over
+    the sequence instead of one .count() scan per group residue)."""
     seq = seq.replace("*", "")
     length = len(seq)
     if length == 0:
@@ -63,9 +76,31 @@ def amino_acid_composition(seq: str) -> dict:
     }
 
 
+def amino_acid_composition_fast(seq: str) -> dict:
+    """Optimization: identical output to amino_acid_composition, computed via
+    a single collections.Counter pass over the sequence instead of ~40
+    separate O(n) .count() scans (7 groups x up to 8 residues each). Integer
+    counts, integer/float division -- no floating-point behavior differs
+    from the reference implementation."""
+    seq = seq.replace("*", "")
+    length = len(seq)
+    if length == 0:
+        return {f"pct_{g}": 0 for g in aa_groups}
+    counts = Counter(seq)
+    return {
+        f"pct_{group}": sum(counts.get(aa, 0) for aa in residues) / length
+        for group, residues in aa_groups.items()
+    }
+
+
 # ---------- Core properties: pI and GRAVY ----------
 def calculate_pi_gravy(seq: str) -> pd.Series:
-    """Isoelectric point and GRAVY hydrophobicity via Biopython."""
+    """Isoelectric point and GRAVY hydrophobicity via Biopython.
+
+    Reference implementation -- ported unchanged from the notebook. Kept as
+    the validated spec; compute_properties() uses
+    calculate_core_biopython_properties below instead (shares one
+    ProteinAnalysis instance with instability/net_charge)."""
     seq = clean_sequence(seq)
     if len(seq) == 0:
         return pd.Series({"pI": None, "gravy": None})
@@ -115,11 +150,40 @@ def calculate_instability(seq: str):
 
 
 def calculate_net_charge(seq: str, pH: float = 7.0):
-    """Net charge at a given pH (default 7.0) via Biopython."""
+    """Net charge at a given pH (default 7.0) via Biopython.
+
+    Reference implementation -- ported unchanged from the notebook. Kept as
+    the validated spec; compute_properties() uses
+    calculate_core_biopython_properties instead."""
     seq = clean_sequence(seq)
     if len(seq) == 0:
         return None
     return ProteinAnalysis(seq).charge_at_pH(pH)
+
+
+def calculate_core_biopython_properties(seq: str) -> pd.Series:
+    """Optimization: pI, gravy, instability_index, and net_charge_pH7 from a
+    single shared ProteinAnalysis instance, instead of calling
+    calculate_pi_gravy + calculate_instability + calculate_net_charge
+    separately (which independently clean_sequence() and construct their own
+    ProteinAnalysis 3 times total). Same four Biopython method calls
+    (isoelectric_point/gravy/instability_index/charge_at_pH(7.0)) on the same
+    cleaned sequence -- output is identical, just without the redundant
+    cleaning/construction."""
+    clean_seq = clean_sequence(seq)
+    if len(clean_seq) == 0:
+        return pd.Series(
+            {"pI": None, "gravy": None, "instability_index": None, "net_charge_pH7": None}
+        )
+    analysis = ProteinAnalysis(clean_seq)
+    return pd.Series(
+        {
+            "pI": analysis.isoelectric_point(),
+            "gravy": analysis.gravy(),
+            "instability_index": analysis.instability_index(),
+            "net_charge_pH7": analysis.charge_at_pH(7.0),
+        }
+    )
 
 
 def cysteine_fraction(seq: str):
@@ -220,22 +284,24 @@ def aggregation_features(seq: str, window: int = 5, hotspot_threshold: float = -
 
 
 def compute_properties(df: pd.DataFrame) -> pd.DataFrame:
+    """Uses the _fast optimized variants (Counter-based composition, one
+    shared ProteinAnalysis for pI/gravy/instability/net_charge) -- see
+    amino_acid_composition_fast and calculate_core_biopython_properties.
+    Output is identical to using the reference (unoptimized) functions; see
+    the optimization commit for the benchmark/equivalence check."""
     df = df.copy()
 
-    aa_comp_df = df["sequence"].apply(amino_acid_composition).apply(pd.Series)
+    aa_comp_df = df["sequence"].apply(amino_acid_composition_fast).apply(pd.Series)
     df = pd.concat([df, aa_comp_df], axis=1)
 
-    df[["pI", "gravy"]] = df["sequence"].apply(calculate_pi_gravy)
+    biopython_df = df["sequence"].apply(calculate_core_biopython_properties)
+    df[["pI", "gravy", "instability_index", "net_charge_pH7"]] = biopython_df
 
     # Sequence-composition properties
     df["aliphatic_index"] = df["sequence"].apply(aliphatic_index)
     df["thermostable_fraction"] = df["sequence"].apply(thermostable_fraction)
     df["cysteine_fraction"] = df["sequence"].apply(cysteine_fraction)
     df["carbon_oxidation_state"] = df["sequence"].apply(carbon_oxidation_state)
-
-    # Biopython-based properties
-    df["instability_index"] = df["sequence"].apply(calculate_instability)
-    df["net_charge_pH7"] = df["sequence"].apply(calculate_net_charge)
 
     # Derived -- note: divides by `length` (the Phase 1 column, i.e. raw
     # length with only the terminal stop stripped), NOT len(clean_sequence(seq)).
