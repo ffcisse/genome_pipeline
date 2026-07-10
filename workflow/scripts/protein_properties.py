@@ -161,6 +161,60 @@ def carbon_oxidation_state(seq: str):
 
 
 # ============================================================================
+# Aggregation group
+# ============================================================================
+
+# AGGRESCAN a3v scale (Conchillo-Sole et al. 2007): per-residue
+# hydrophobicity-derived aggregation propensity.
+A3V = {
+    "I": 1.822, "F": 1.754, "V": 1.594, "L": 1.380, "W": 1.037,
+    "M": 0.910, "A": 0.826, "C": 0.604, "Y": 1.159, "Q": 0.272,
+    "T": 0.007, "S": 0.294, "H": 0.180, "G": -0.144, "K": -0.402,
+    "N": -0.264, "D": -1.836, "E": -0.583, "R": -0.500, "P": -1.302,
+}
+
+
+def aggregation_features(seq: str, window: int = 5, hotspot_threshold: float = -0.02) -> pd.Series:
+    """AGGRESCAN-style aggregation propensity from the a3v hydrophobicity-derived scale.
+    a4v is the window-5 sliding average of a3v assigned to the central residue.
+      - agg_mean_a3v: mean a3v over all residues (PRIMARY metric, like GRAVY)
+      - agg_Na4vSS: normalized a4v sequence sum per 100 residues
+      - agg_hotspot_fraction: fraction of a4v windows above hotspot_threshold
+    """
+    seq = clean_sequence(seq)
+    n = len(seq)
+    if n == 0:
+        return pd.Series({"agg_mean_a3v": None, "agg_Na4vSS": None, "agg_hotspot_fraction": None})
+
+    a3v_values = [A3V[aa] for aa in seq]
+    agg_mean_a3v = sum(a3v_values) / n
+
+    half = window // 2
+    a4v_values = [
+        sum(a3v_values[i - half : i + half + 1]) / window for i in range(half, n - half)
+    ]
+    if not a4v_values:
+        return pd.Series(
+            {
+                "agg_mean_a3v": agg_mean_a3v,
+                "agg_Na4vSS": None,
+                "agg_hotspot_fraction": None,
+            }
+        )
+
+    agg_Na4vSS = sum(a4v_values) / n * 100
+    agg_hotspot_fraction = sum(1 for v in a4v_values if v > hotspot_threshold) / len(a4v_values)
+
+    return pd.Series(
+        {
+            "agg_mean_a3v": agg_mean_a3v,
+            "agg_Na4vSS": agg_Na4vSS,
+            "agg_hotspot_fraction": agg_hotspot_fraction,
+        }
+    )
+
+
+# ============================================================================
 # Orchestration -- mirrors the notebook's Section 3 application pattern.
 # ============================================================================
 
@@ -187,6 +241,10 @@ def compute_properties(df: pd.DataFrame) -> pd.DataFrame:
     # length with only the terminal stop stripped), NOT len(clean_sequence(seq)).
     # This matches the notebook exactly (df["net_charge_pH7"] / df["length"]).
     df["charge_density"] = df["net_charge_pH7"] / df["length"]
+
+    df[["agg_mean_a3v", "agg_Na4vSS", "agg_hotspot_fraction"]] = df["sequence"].apply(
+        aggregation_features
+    )
 
     return df
 
