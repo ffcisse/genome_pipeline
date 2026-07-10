@@ -16,13 +16,17 @@ Refactors validated exploratory-notebook analysis into modular, reproducible pip
 `dashboard` are still `touch`-only stubs from the Phase 0 scaffold (see bottom of this file).
 
 ## Planned stages
-1. `qc` -- input FASTA quality checks (per genome)
-2. `parse` -- parse protein + CDS FASTA into canonical tables (per genome)
-3. `protein_properties` -- physicochemical properties per protein (per genome)
-4. `cds_properties` -- GC/GC3/codon usage/ENC per gene (per genome)
-5. `summaries` -- cross-genome summary tables (all genomes)
-6. `visuals` -- summary figures (all genomes)
-7. `dashboard` -- interactive dashboard (deferred; empty rule for now)
+0. `stage_inputs` -- **done.** Symlink real per-genome FASTA into a flat layout (optional; only
+   runs if `staging.source_dir` is set)
+1. `qc` -- **done.** Input FASTA quality checks (per genome) -- writes a report to
+   `results/qc/<genome_id>.qc.done`
+2. `parse` -- **done.** Parse protein + CDS FASTA into canonical tables (per genome) --
+   `results/parsed/<genome_id>/protein_table.csv` and `.../cds_table.csv`
+3. `protein_properties` -- *stub.* Physicochemical properties per protein (per genome)
+4. `cds_properties` -- *stub.* GC/GC3/codon usage/ENC per gene (per genome)
+5. `summaries` -- *stub.* Cross-genome summary tables (all genomes)
+6. `visuals` -- *stub.* Summary figures (all genomes)
+7. `dashboard` -- *stub.* Interactive dashboard (deferred; empty rule for now)
 
 ## How to run
 
@@ -63,11 +67,16 @@ snakemake --dag | dot -Tpng > dag.png
 ```bash
 snakemake --cores 4 --use-conda
 ```
+**If you're on a shared login node** (e.g. DORI's), don't run the full multi-genome dataset this
+way -- it's fine for a quick check against one genome (`snakemake --cores 1 --use-conda
+results/qc/<genome_id>.qc.done`) or a small subset, but a full run belongs in a SLURM job (step 6
+below) so it doesn't compete with other users' interactive work.
 
 ### 6. Run on DORI (SLURM)
 See [`SLURM.md`](SLURM.md) for the executor-plugin setup and submission command. For just the
 Phase 1 stages (staging/qc/parse), `workflow/scripts/submit_phase1.sh` submits a single sbatch
-job, configured via `config/config.yaml`'s `slurm:` block.
+job, configured via `config/config.yaml`'s `slurm:` block (requires PyYAML in whichever `python3`
+is on `PATH` -- already satisfied if you followed step 2, since it's a Snakemake dependency).
 
 ## Repo layout
 ```
