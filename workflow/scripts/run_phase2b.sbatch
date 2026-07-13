@@ -4,7 +4,7 @@
 #SBATCH --exclusive
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=0
-#SBATCH --time=01:00:00
+#SBATCH --time=01:30:00
 #SBATCH --output=logs/phase2b_%j.out
 #SBATCH --error=logs/phase2b_%j.err
 #SBATCH --mail-type=BEGIN,END
@@ -65,9 +65,39 @@ for g in $GENOMES; do
     TARGETS+=("results/disorder/${g}/disorder.csv")
 done
 
+# Make sure the env exists before we try to warm or use it (cheap/no-op if
+# already built -- this just reuses the cached .snakemake/conda/<hash>/ dir).
+snakemake --use-conda --conda-create-envs-only --cores 1 "${TARGETS[@]}"
+
+# Warm the disorder env's filesystem cache BEFORE Snakemake's real,
+# time-pressured run touches it -- earlier attempts at this job hit a
+# ModuleNotFoundError for torch on a freshly allocated --exclusive node that
+# had never read this (much bigger than analysis.yaml's) env before. A
+# single, serial, no-time-pressure import here forces that first read to
+# happen (and fail loudly, before the real run) instead of racing
+# Snakemake's job.
+#
+# LD_LIBRARY_PATH=$DISORDER_ENV/lib: same fix as disorder.smk's shell
+# command (see the comment there) -- pip-installed torch has no RPATH back
+# to this conda env, so without this, the dynamic linker can resolve
+# libstdc++.so.6 to DORI's older system copy (GLIBCXX_3.4.25 max) instead of
+# this env's own newer one (GLIBCXX_3.4.34), and numpy/scipy (pulled in by
+# metapredict) then crash needing GLIBCXX_3.4.29+. Set it here too so this
+# warm-up check actually exercises the same working configuration the real
+# rule uses, rather than giving a false pass/fail on a different one.
+DISORDER_ENV=$(
+    snakemake --use-conda --list-conda-envs "${TARGETS[@]}" 2>/dev/null \
+        | awk -F'\t' '$1 == "workflow/envs/disorder.yaml" {print $3}'
+)
+echo "Warming disorder conda env: ${DISORDER_ENV}"
+LD_LIBRARY_PATH="${DISORDER_ENV}/lib:${LD_LIBRARY_PATH:-}" \
+    "${DISORDER_ENV}/bin/python" -c "import torch, metapredict, pandas, numpy; print('disorder env warm-up OK')"
+
 # --retries: same transient-conda-activation insurance added to Phase 2a's
 # job (see run_phase2a.sbatch) -- cheap, and doesn't mask a real,
-# reproducible failure (which would just fail again on the retry).
+# reproducible failure (which would just fail again on the retry). Kept even
+# with the warm-up above, since it's still free insurance against unrelated
+# transient blips.
 snakemake --cores "${SLURM_CPUS_PER_TASK}" --use-conda --retries 1 "${TARGETS[@]}"
 
 echo "Done at $(date)"

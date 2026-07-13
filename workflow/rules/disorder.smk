@@ -47,6 +47,22 @@ rule disorder:
         mem_mb=64000,
         runtime=90,
     shell:
+        # LD_LIBRARY_PATH=$CONDA_PREFIX/lib: pip-installed torch has no RPATH
+        # back to this conda env (unlike the conda-forge-built packages in
+        # it), so without this the dynamic linker resolves libstdc++.so.6 via
+        # the system default path -- DORI's el8 system copy only goes up to
+        # GLIBCXX_3.4.25. Once that older copy loads into the process (from
+        # torch), it silently "wins" for every other package that later needs
+        # libstdc++.so.6 too, including numpy/scipy (via metapredict), which
+        # need GLIBCXX_3.4.29+ and crash with a GLIBCXX ImportError depending
+        # on which package happened to import first. Pointing
+        # LD_LIBRARY_PATH at this env's own lib/ (which has GLIBCXX_3.4.34)
+        # makes the correct, newer copy win regardless of import order --
+        # more robust than relying on a particular import order in
+        # disorder.py, which could silently break again on any future edit.
+        # $CONDA_PREFIX is set by the `conda activate` Snakemake's --use-conda
+        # already runs before this shell command.
+        "LD_LIBRARY_PATH=$CONDA_PREFIX/lib:${{LD_LIBRARY_PATH:-}} "
         "OMP_NUM_THREADS={threads} MKL_NUM_THREADS={threads} "
         "python workflow/scripts/disorder.py --genome {wildcards.genome} "
         "--protein-properties {input} --output {output} --threads {threads}"
