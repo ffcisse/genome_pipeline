@@ -54,6 +54,11 @@ fi
 echo "Job $SLURM_JOB_ID starting on $(hostname) at $(date)"
 echo "CPUs available: $(nproc)"
 
-snakemake --cores "${SLURM_CPUS_PER_TASK}" --use-conda
+# --retries: several parallel local jobs cold-activate the same networked
+# conda env on a freshly allocated node at once; on a busy shared filesystem
+# that first touch can transiently fail (e.g. spurious ModuleNotFoundError)
+# even though the env is intact. One retry is cheap insurance against that
+# without masking a real, reproducible bug (which would fail again).
+snakemake --cores "${SLURM_CPUS_PER_TASK}" --use-conda --retries 1
 
 echo "Done at $(date)"
