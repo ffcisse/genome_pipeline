@@ -96,6 +96,7 @@ if STAGING_SOURCE_DIR:
 include: "rules/qc.smk"
 include: "rules/parse.smk"
 include: "rules/protein_properties.smk"
+include: "rules/disorder.smk"
 include: "rules/cds_properties.smk"
 include: "rules/summaries.smk"
 include: "rules/visuals.smk"

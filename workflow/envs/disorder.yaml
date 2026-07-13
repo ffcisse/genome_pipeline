@@ -1,0 +1,24 @@
+# Conda environment for the disorder rule (Phase 2b) ONLY -- deliberately
+# separate from envs/analysis.yaml. metapredict is a PyTorch model, not
+# sequence math like the Phase 2a properties, and isn't on conda-forge/
+# bioconda (checked) -- it's pip-only, so it goes in the `pip:` section
+# below. conda still solves python/pandas/numpy first, then pip installs
+# metapredict (and its own torch dependency) into that same env -- normal
+# --use-conda behavior, no extra Snakemake machinery needed for the mixed
+# conda+pip case.
+#
+# Versions pinned to an earlier manual run on DORI (interactive, CPU
+# inference, validated against known disordered/well-folded reference
+# proteins -- see workflow/scripts/disorder.py's docstring) rather than
+# left floating, so this rule reproduces that already-validated behavior
+# instead of whatever metapredict/torch happen to resolve to today.
+name: disorder
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pandas=2.3.3
+  - numpy=2.2.6
+  - pip
+  - pip:
+      - metapredict==3.0.2

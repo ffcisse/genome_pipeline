@@ -10,8 +10,6 @@ import io
 import tarfile
 from pathlib import Path
 
-from Bio import SeqIO
-
 VALID_AAS = set("ACDEFGHIKLMNPQRSTVWY")
 
 
@@ -24,7 +22,15 @@ def clean_sequence(seq: str) -> str:
 def iter_fasta_records(path):
     """Yield Bio.SeqRecord objects from a FASTA file that may be plain,
     gzipped, or a gzipped tar containing exactly one FASTA member -- the
-    three formats found across the real Mycocosm downloads."""
+    three formats found across the real Mycocosm downloads.
+
+    Imports Bio.SeqIO locally (rather than at module level) so that
+    clean_sequence -- the only other thing this module exports -- stays
+    importable in envs that don't have biopython at all, e.g. the Phase 2b
+    disorder env, which needs clean_sequence but has no reason to carry a
+    biopython dependency."""
+    from Bio import SeqIO
+
     path = Path(path)
     name = path.name
     if name.endswith(".tar.gz") or name.endswith(".tgz"):
