@@ -1,0 +1,20 @@
+# Conda environment for the cds_properties rule (Phase 3) ONLY -- separate
+# from envs/analysis.yaml and envs/disorder.yaml, same reasoning as those:
+# codonW is a standalone C program (Peden), not a Python library, and has
+# nothing to do with either env's dependencies.
+#
+# codonW is NOT a pip package -- it's on bioconda. Pinned to the exact
+# version+build (1.4.4, h7b50bb2_7) already validated on this deployment: it's
+# what produced ~/codonw_results/all_species_codonw.csv (see
+# ~/codonw_test/run_codonw_all.sh in bash history), installed manually earlier
+# into a conda env named `codonw_env`. This yaml reproduces that same
+# validated build under Snakemake's own env management instead of depending on
+# that hand-built env continuing to exist.
+name: codonw
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - codonw=1.4.4=h7b50bb2_7
+  - pandas
+  - numpy
