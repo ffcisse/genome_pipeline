@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 """Stage 5 (Phase 4) -- Merge every genome's protein_properties.csv +
-disorder.csv into one master table, with lifestyle/lineage group labels
-joined in from config/genomes.tsv (kept separate from the per-genome result
-tables by design -- see config/genomes.tsv and the Snakefile's docstring --
-so this merge is the one place group labels actually get attached).
+disorder.csv into one master table, with group labels joined in from
+config/genomes.tsv (kept separate from the per-genome result tables by
+design -- see config/genomes.tsv and the Snakefile's docstring -- so this
+merge is the one place group labels actually get attached). --group-columns
+says which genome_table columns to attach (config.yaml's
+sensitivity.primary_grouping/subgroup_column, e.g. lifestyle/lineage by
+default) -- not hardcoded here, so a differently-named or -shaped
+genome_table works without editing this script.
 
 Row-count discipline: rather than hardcode the current dataset's 61,349
 figure (which would silently stop being checked the moment a genome is
@@ -27,6 +31,7 @@ def main():
     parser.add_argument("--protein-tables", nargs="+", required=True)
     parser.add_argument("--disorder-tables", nargs="+", required=True)
     parser.add_argument("--genomes-tsv", required=True)
+    parser.add_argument("--group-columns", nargs="+", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
@@ -38,12 +43,12 @@ def main():
     merged = protein_df.merge(disorder_df, on=["genome", "protein_id"], how="inner", validate="one_to_one")
     assert_row_count(merged, n_input, "merge_protein_table (protein+disorder join)")
 
-    labels = load_genome_labels(args.genomes_tsv)
+    labels = load_genome_labels(args.genomes_tsv, args.group_columns)
     merged = merged.merge(labels, on="genome", how="left", validate="many_to_one")
     assert_row_count(merged, n_input, "merge_protein_table (group-label join)")
-    missing = sorted(merged.loc[merged["lifestyle"].isna(), "genome"].unique())
+    missing = sorted(merged.loc[merged[args.group_columns].isna().any(axis=1), "genome"].unique())
     if missing:
-        raise AssertionError(f"No lifestyle/lineage label in {args.genomes_tsv} for genomes: {missing}")
+        raise AssertionError(f"No {args.group_columns} label in {args.genomes_tsv} for genomes: {missing}")
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     merged.to_csv(args.output, index=False)

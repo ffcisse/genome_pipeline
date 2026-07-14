@@ -1,33 +1,55 @@
 """Shared helpers for the Phase 4 summaries scripts (merge_*_table.py,
-species_summary.py, effect_sizes.py, sensitivity_drop_galdieria.py) --
+species_summary.py, effect_sizes.py, sensitivity_drop_subgroup.py) --
 mirrors seq_utils.py's role for the earlier phases: one place for logic
 every summaries script needs, instead of copy-pasted per script.
+
+Nothing here hardcodes a grouping column NAME or VALUE (e.g. "lifestyle",
+"Galdieria") -- every caller passes those in explicitly, sourced from
+config.yaml/genomes.tsv via Snakemake `params:`/CLI args. This is what makes
+the pipeline's "genome-agnostic" claim actually true for the summaries
+stage, not just the per-genome stages.
 """
 
 import numpy as np
 import pandas as pd
 from scipy.stats import mannwhitneyu
 
-# Columns that are identifiers/free text, never analysis properties --
-# every summaries script excludes these when picking numeric properties.
-NON_PROPERTY_COLUMNS = {
+# Structural/identifier columns from THIS pipeline's own per-gene property
+# scripts (protein_properties.py, disorder.py, cds_properties.py) -- fixed
+# regardless of genome_table content, since these come from our own known
+# output schemas, not user configuration. Group/label columns (whatever
+# genome_table actually has -- lifestyle, lineage, your own names) are
+# NOT listed here; callers pass those in separately (see
+# numeric_property_columns's label_columns param), since only the Snakefile
+# and config.yaml know what they're called for a given deployment.
+STRUCTURAL_COLUMNS = {
     "genome",
     "protein_id",
     "cds_id",
     "sequence",
     "start_codon",
     "stop_codon",
-    "name",
-    "lifestyle",
-    "lineage",
 }
 
 
-def load_genome_labels(genomes_tsv_path: str) -> pd.DataFrame:
-    """genome_id/lifestyle/lineage from config/genomes.tsv, renamed to
-    `genome` to match the join key every per-genome results table uses."""
+def genome_table_columns(genomes_tsv_path: str) -> list[str]:
+    """Every column in genome_table except genome_id -- whatever these are
+    (name, lifestyle, lineage, or your own columns), they become label
+    columns once merged into a master table, never numeric properties.
+    Used to build the exclude list for numeric_property_columns."""
     labels = pd.read_csv(genomes_tsv_path, sep="\t")
-    return labels.rename(columns={"genome_id": "genome"})[["genome", "lifestyle", "lineage"]]
+    return [c for c in labels.columns if c != "genome_id"]
+
+
+def load_genome_labels(genomes_tsv_path: str, group_columns: list[str]) -> pd.DataFrame:
+    """genome_id + group_columns from genome_table, renamed to `genome` to
+    match the join key every per-genome results table uses. group_columns
+    is exactly the columns actually wired into this pipeline's grouping
+    analyses (config.yaml's sensitivity.primary_grouping/subgroup_column) --
+    not necessarily every column genome_table happens to have (e.g. a
+    free-text `name` column stays out of the master tables)."""
+    labels = pd.read_csv(genomes_tsv_path, sep="\t")
+    return labels.rename(columns={"genome_id": "genome"})[["genome", *group_columns]]
 
 
 def assert_row_count(df: pd.DataFrame, expected: int, label: str) -> None:
@@ -38,17 +60,46 @@ def assert_row_count(df: pd.DataFrame, expected: int, label: str) -> None:
         raise AssertionError(f"{label}: expected {expected} rows after merge, got {len(df)}")
 
 
-def numeric_property_columns(df: pd.DataFrame) -> list[str]:
+def numeric_property_columns(df: pd.DataFrame, label_columns: list[str] = ()) -> list[str]:
     """Every column that's a real analysis property: numeric or boolean,
-    excluding NON_PROPERTY_COLUMNS. Column-name-agnostic on purpose -- new
-    properties added to upstream phases show up here automatically."""
+    excluding STRUCTURAL_COLUMNS and the given label_columns (pass
+    genome_table_columns(genomes_tsv_path), or the specific grouping
+    columns a script already knows it merged in). Column-name-agnostic on
+    purpose -- new properties added to upstream phases show up here
+    automatically."""
+    exclude = STRUCTURAL_COLUMNS | set(label_columns)
     cols = []
     for col in df.columns:
-        if col in NON_PROPERTY_COLUMNS:
+        if col in exclude:
             continue
         if pd.api.types.is_numeric_dtype(df[col]) or pd.api.types.is_bool_dtype(df[col]):
             cols.append(col)
     return cols
+
+
+def resolve_group_order(observed_values, configured_order=None) -> list:
+    """Preferred order for a grouping column's distinct values -- decides
+    which value is "A" (vs "B") in cles/rank_biserial, i.e. which direction
+    an effect size is signed, and (for >2 values) the order pairwise
+    comparisons are generated in. This is an analyst framing choice (which
+    group are you testing FOR) rather than something inferable from the
+    data alone, so it's an optional override -- config.yaml's
+    group_value_order -- falling back to alphabetical order for any column
+    (or any value not covered) it doesn't mention.
+
+    Raises if a configured order doesn't exactly match the observed values
+    (a typo or a stale config after genome_table changes should fail loudly,
+    not silently drop/duplicate a group).
+    """
+    observed = set(observed_values)
+    if configured_order:
+        configured = list(configured_order)
+        if set(configured) != observed:
+            raise AssertionError(
+                f"configured group order {configured} doesn't match the observed values {sorted(observed)}"
+            )
+        return configured
+    return sorted(observed)
 
 
 def compare_groups(a: pd.Series, b: pd.Series) -> dict:

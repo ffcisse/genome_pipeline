@@ -29,10 +29,13 @@ primary_grouping regardless of that subgroup.
 primary_grouping must have exactly 2 distinct values present (both before
 and after exclusion) -- rank_biserial is inherently a 2-group effect size;
 for >2 groups, use effect_sizes.py's pairwise comparisons instead. Group
-order (which value is "A") is whichever comes first alphabetically -- this
-script has no dataset-specific knowledge of which value "should" be
-group_a, unlike effect_sizes.py's GROUP_ORDER (shrinkage is computed from
-absolute values, so this ordering choice doesn't affect it either way).
+order (which value is "A") comes from --group-order if given (same
+optional config.yaml override effect_sizes.py uses -- see
+summaries_utils.resolve_group_order), else alphabetical. shrinkage itself is
+computed from absolute values so this ordering choice doesn't change it
+either way, but honoring the same configured order keeps the signed
+rank_biserial_full/rank_biserial_excluded columns here consistent with the
+corresponding row in effect_sizes_<primary_grouping>.csv.
 
 Edge case (flagged, not crashed): if removing exclude_subgroup leaves either
 primary_grouping value with fewer than 2 genomes backing it, a Mann-Whitney
@@ -46,19 +49,25 @@ import argparse
 import os
 
 import pandas as pd
-from summaries_utils import compare_groups, numeric_property_columns
+from summaries_utils import compare_groups, genome_table_columns, numeric_property_columns, resolve_group_order
 
 
 def sensitivity_for_table(
-    df: pd.DataFrame, table_name: str, primary_grouping: str, subgroup_column: str, exclude_subgroup: str
+    df: pd.DataFrame,
+    table_name: str,
+    primary_grouping: str,
+    subgroup_column: str,
+    exclude_subgroup: str,
+    label_columns,
+    group_order,
 ) -> list[dict]:
-    observed = sorted(df[primary_grouping].dropna().unique())
-    if len(observed) != 2:
+    observed = df[primary_grouping].dropna().unique()
+    if len(set(observed)) != 2:
         raise AssertionError(
-            f"--primary-grouping {primary_grouping!r} has {len(observed)} distinct value(s) "
-            f"in the {table_name} table ({observed}), expected exactly 2"
+            f"--primary-grouping {primary_grouping!r} has {len(set(observed))} distinct value(s) "
+            f"in the {table_name} table ({sorted(set(observed))}), expected exactly 2"
         )
-    group_a, group_b = observed
+    group_a, group_b = resolve_group_order(observed, group_order)
 
     excluded_df = df[df[subgroup_column] != exclude_subgroup]
     n_genomes_a = excluded_df.loc[excluded_df[primary_grouping] == group_a, "genome"].nunique()
@@ -73,7 +82,7 @@ def sensitivity_for_table(
         )
 
     rows = []
-    for prop in numeric_property_columns(df):
+    for prop in numeric_property_columns(df, label_columns=label_columns):
         full = compare_groups(df.loc[df[primary_grouping] == group_a, prop], df.loc[df[primary_grouping] == group_b, prop])
         if safe_to_compare:
             excl = compare_groups(
@@ -102,17 +111,29 @@ def main():
     parser.add_argument("--primary-grouping", required=True, help="Column in the master tables, e.g. lifestyle")
     parser.add_argument("--subgroup-column", required=True, help="Column in the master tables, e.g. lineage")
     parser.add_argument("--exclude-subgroup", required=True, help="Value of --subgroup-column to drop entirely")
+    parser.add_argument("--genomes-tsv", required=True)
+    parser.add_argument(
+        "--group-order",
+        nargs="*",
+        default=[],
+        help="Preferred order of --primary-grouping's distinct values (which is 'A'); omit for alphabetical order",
+    )
     parser.add_argument("--master-protein-table", required=True)
     parser.add_argument("--master-cds-table", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
+    label_columns = genome_table_columns(args.genomes_tsv)
     protein_df = pd.read_csv(args.master_protein_table)
     cds_df = pd.read_csv(args.master_cds_table)
 
     rows = sensitivity_for_table(
-        protein_df, "protein", args.primary_grouping, args.subgroup_column, args.exclude_subgroup
-    ) + sensitivity_for_table(cds_df, "cds", args.primary_grouping, args.subgroup_column, args.exclude_subgroup)
+        protein_df, "protein", args.primary_grouping, args.subgroup_column, args.exclude_subgroup,
+        label_columns, args.group_order,
+    ) + sensitivity_for_table(
+        cds_df, "cds", args.primary_grouping, args.subgroup_column, args.exclude_subgroup,
+        label_columns, args.group_order,
+    )
 
     result = pd.DataFrame(rows)
     result = result.reindex(

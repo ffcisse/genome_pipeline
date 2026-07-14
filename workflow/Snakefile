@@ -50,6 +50,17 @@ SENSITIVITY_PRIMARY_GROUPING = config["sensitivity"]["primary_grouping"]
 SENSITIVITY_SUBGROUP_COLUMN = config["sensitivity"]["subgroup_column"]
 SUBGROUPS = sorted(genome_df[SENSITIVITY_SUBGROUP_COLUMN].unique().tolist())
 
+# The two genome_table columns actually wired into Phase 4's grouping
+# analyses -- passed to merge_protein_table.py/merge_cds_table.py/
+# species_summary.py (--group-columns) so they attach exactly these labels
+# to the master tables, and used below to build effect_sizes' `{grouping}`
+# wildcard_constraints/expand() list. GROUP_VALUE_ORDER is the optional
+# per-column comparison order from config.yaml's `group_value_order:`
+# block (empty dict if that block is omitted -- every consumer already
+# falls back to alphabetical order when a column's entry is missing).
+GROUPING_COLUMNS = [SENSITIVITY_PRIMARY_GROUPING, SENSITIVITY_SUBGROUP_COLUMN]
+GROUP_VALUE_ORDER = config.get("group_value_order", {})
+
 # ---- Resolve staged input paths ----
 # PROTEIN_STAGED / CDS_STAGED map genome_id -> the file qc/parse should read.
 # Default (no staging configured): protein_dir/cds_dir already contain flat
