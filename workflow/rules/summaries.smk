@@ -1,33 +1,153 @@
-rule summaries:
+rule merge_protein_table:
     """
-    Stage 5 -- Aggregate per-genome protein + CDS properties into cross-genome
-    summary tables (group/subgroup comparisons, effect sizes -- Phase 1).
+    Stage 5 (Phase 4) -- Join every genome's protein_properties.csv +
+    disorder.csv into one master table, with lifestyle/lineage group labels
+    joined in from config/genomes.tsv (which is why it's listed as an input
+    here too, not just read incidentally -- editing it should invalidate
+    this rule). See workflow/scripts/merge_protein_table.py's docstring for
+    the row-count validation (must exactly match the concatenated input,
+    checked via both pandas' `validate="one_to_one"` and an explicit count
+    comparison -- fails loudly, not a warning, on any mismatch).
 
-    This is a FAN-IN rule: unlike qc/parse/protein_properties/cds_properties (one
-    job per genome), this rule has no `{genome}` wildcard of its own -- it needs
-    ALL genomes done first. `expand(...)` is how you say that: it takes a path
-    template with a `{genome}` placeholder and GENOMES (the full list from the
-    Snakefile), and returns one concrete path per genome, e.g.
-    expand(OUTDIR + "/protein_properties/{genome}/protein_properties.csv", genome=GENOMES)
-    becomes ["results/protein_properties/Cyamer1/protein_properties.csv",
-    "results/protein_properties/Galsul1/protein_properties.csv", ...] -- a list of one file
-    per genome this rule requires as input, so Snakemake won't run it until every
-    genome has finished both protein_properties and cds_properties.
-
-    cds= below points at cds_properties.csv (Phase 3's real output) rather
-    than the old cds_properties/{genome}.properties.done marker from the
-    Phase 0 stub -- updated to match once cds_properties.smk became a real
-    rule, same as protein= already pointed at protein_properties.csv rather
-    than a marker.
+    This is a FAN-IN rule like the old `summaries` stub was: expand(...)
+    turns the {genome} wildcard template into one concrete path per genome
+    in GENOMES, so Snakemake won't run this until every genome has finished
+    both protein_properties and disorder.
     """
     input:
-        protein=expand(
-            OUTDIR + "/protein_properties/{genome}/protein_properties.csv", genome=GENOMES
-        ),
+        protein=expand(OUTDIR + "/protein_properties/{genome}/protein_properties.csv", genome=GENOMES),
+        disorder=expand(OUTDIR + "/disorder/{genome}/disorder.csv", genome=GENOMES),
+        genomes_tsv=config["genome_table"],
+    output:
+        OUTDIR + "/summaries/master_protein_table.csv",
+    conda:
+        "../envs/summaries.yaml"
+    shell:
+        "python workflow/scripts/merge_protein_table.py "
+        "--protein-tables {input.protein} --disorder-tables {input.disorder} "
+        "--genomes-tsv {input.genomes_tsv} --output {output}"
+
+
+rule merge_cds_table:
+    """
+    Stage 5 (Phase 4) -- Same as merge_protein_table, for the CDS side:
+    joins cds_properties.csv + codon_usage.csv per genome, plus group
+    labels. See workflow/scripts/merge_cds_table.py.
+    """
+    input:
         cds=expand(OUTDIR + "/cds_properties/{genome}/cds_properties.csv", genome=GENOMES),
+        codon_usage=expand(OUTDIR + "/cds_properties/{genome}/codon_usage.csv", genome=GENOMES),
+        genomes_tsv=config["genome_table"],
+    output:
+        OUTDIR + "/summaries/master_cds_table.csv",
+    conda:
+        "../envs/summaries.yaml"
+    shell:
+        "python workflow/scripts/merge_cds_table.py "
+        "--cds-tables {input.cds} --codon-usage-tables {input.codon_usage} "
+        "--genomes-tsv {input.genomes_tsv} --output {output}"
+
+
+rule species_summary:
+    """
+    Stage 5 (Phase 4) -- One row per genome: median/mean/std of every
+    numeric property from both master tables, plus gene counts and group
+    labels. See workflow/scripts/species_summary.py.
+    """
+    input:
+        protein=OUTDIR + "/summaries/master_protein_table.csv",
+        cds=OUTDIR + "/summaries/master_cds_table.csv",
+        genomes_tsv=config["genome_table"],
+    output:
+        OUTDIR + "/summaries/species_summary.csv",
+    conda:
+        "../envs/summaries.yaml"
+    shell:
+        "python workflow/scripts/species_summary.py "
+        "--master-protein-table {input.protein} --master-cds-table {input.cds} "
+        "--genomes-tsv {input.genomes_tsv} --output {output}"
+
+
+rule effect_sizes:
+    """
+    Stage 5 (Phase 4) -- Group-comparison effect sizes (Mann-Whitney U,
+    CLES, rank-biserial correlation) for every numeric property, for a
+    CONFIGURABLE grouping variable -- this is the key requirement Phase 4
+    was built around. See workflow/scripts/effect_sizes.py's docstring for
+    why: with n~61,000, p-values are ~0 regardless of whether a difference
+    is biologically meaningful, and several properties turn out to separate
+    by Galdieria lineage rather than lifestyle -- so being able to swap the
+    grouping variable without touching code is the whole point.
+
+    `{grouping}` is a Snakemake wildcard, same mechanism as `{genome}`
+    elsewhere in this pipeline, but instead of matching a value from
+    GENOMES, it's constrained below to exactly "lifestyle" or "lineage" via
+    `wildcard_constraints` (a regex Snakemake requires the wildcard's value
+    to match). Without that constraint, a typo'd target like
+    `results/summaries/effect_sizes_lifestyle_typo.csv` would still match
+    this rule (Snakemake would just try to run it with
+    wildcards.grouping="lifestyle_typo", and effect_sizes.py would reject it
+    at runtime via its own --choices check) -- the constraint catches that
+    at DAG-build time instead, with a clearer error.
+
+    Requesting both variants: expand(... "{grouping}" ..., grouping=[...])
+    in the `summaries` rule below is exactly the same expand() mechanism as
+    GENOMES, just over a 2-item list instead of the 9 genomes -- it's what
+    makes both effect_sizes_lifestyle.csv and effect_sizes_lineage.csv part
+    of the default build.
+    """
+    input:
+        protein=OUTDIR + "/summaries/master_protein_table.csv",
+        cds=OUTDIR + "/summaries/master_cds_table.csv",
+    output:
+        OUTDIR + "/summaries/effect_sizes_{grouping}.csv",
+    wildcard_constraints:
+        grouping="lifestyle|lineage",
+    conda:
+        "../envs/summaries.yaml"
+    shell:
+        "python workflow/scripts/effect_sizes.py --grouping {wildcards.grouping} "
+        "--master-protein-table {input.protein} --master-cds-table {input.cds} --output {output}"
+
+
+rule sensitivity_drop_galdieria:
+    """
+    Stage 5 (Phase 4) -- Quantifies how much of each property's lifestyle
+    effect size is actually a Galdieria-lineage artifact: recomputes
+    extremophile-vs-mesophile rank_biserial with and without the 3 Galdieria
+    genomes. See workflow/scripts/sensitivity_drop_galdieria.py.
+    """
+    input:
+        protein=OUTDIR + "/summaries/master_protein_table.csv",
+        cds=OUTDIR + "/summaries/master_cds_table.csv",
+    output:
+        OUTDIR + "/summaries/sensitivity_drop_galdieria.csv",
+    conda:
+        "../envs/summaries.yaml"
+    shell:
+        "python workflow/scripts/sensitivity_drop_galdieria.py "
+        "--master-protein-table {input.protein} --master-cds-table {input.cds} --output {output}"
+
+
+rule summaries:
+    """
+    Stage 5 checkpoint -- Phase 4 is summaries ONLY (visuals/dashboard come
+    later), so this stays a thin touch-only aggregator, exactly like it was
+    as a Phase 0 stub: visuals.smk/dashboard.smk are untouched by Phase 4,
+    they still just need results/summaries/summaries.done to exist. Its
+    `input:` is what actually pulls in every real Phase 4 rule above (and,
+    transitively through THOSE rules' own inputs, protein_properties/
+    disorder/cds_properties/codon_usage for every genome) -- the touch
+    itself doesn't do anything, but Snakemake won't run it (or let anything
+    downstream proceed) until every input listed here exists.
+    """
+    input:
+        master_protein=OUTDIR + "/summaries/master_protein_table.csv",
+        master_cds=OUTDIR + "/summaries/master_cds_table.csv",
+        species_summary=OUTDIR + "/summaries/species_summary.csv",
+        effect_sizes=expand(OUTDIR + "/summaries/effect_sizes_{grouping}.csv", grouping=["lifestyle", "lineage"]),
+        sensitivity=OUTDIR + "/summaries/sensitivity_drop_galdieria.csv",
     output:
         OUTDIR + "/summaries/summaries.done",
-    conda:
-        "../envs/analysis.yaml"
     shell:
         "touch {output}"
