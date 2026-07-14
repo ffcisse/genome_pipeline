@@ -11,7 +11,9 @@ and the same rules apply unchanged.
 Snakemake reads this file top-to-bottom to build its rule graph:
   1. `configfile:` loads config/config.yaml into the global `config` dict.
   2. We read config/genomes.tsv to get the list of genome IDs -- this becomes the
-     set of values Snakemake will substitute for the `{genome}` wildcard.
+     set of values Snakemake will substitute for the `{genome}` wildcard. The same
+     idiom derives SUBGROUPS (values Snakemake will substitute for `{subgroup}`)
+     from whichever genomes.tsv column config.yaml's `sensitivity:` block names.
   3. `rule all` lists every *final* output we want. Snakemake works backwards from
      there: for each missing file, it looks for a rule whose `output` matches, then
      recurses into *that* rule's `input`, and so on, until every input either exists
@@ -28,6 +30,7 @@ configfile: "config/config.yaml"
 
 import glob
 import os
+import re
 
 import pandas as pd
 
@@ -35,6 +38,17 @@ genome_df = pd.read_csv(config["genome_table"], sep="\t")
 GENOMES = genome_df["genome_id"].tolist()
 
 OUTDIR = config["output_dir"]
+
+# ---- Sensitivity analysis (leave-one-subgroup-out) config ----
+# SENSITIVITY_SUBGROUP_COLUMN's distinct values become SUBGROUPS -- the set
+# of values Snakemake will substitute for the `{subgroup}` wildcard in
+# summaries.smk's sensitivity_drop_subgroup rule, exactly the same idiom as
+# GENOMES above for `{genome}`, just derived from a different genome_table
+# column (whichever one config.yaml's `sensitivity.subgroup_column` names,
+# not hardcoded to "lineage").
+SENSITIVITY_PRIMARY_GROUPING = config["sensitivity"]["primary_grouping"]
+SENSITIVITY_SUBGROUP_COLUMN = config["sensitivity"]["subgroup_column"]
+SUBGROUPS = sorted(genome_df[SENSITIVITY_SUBGROUP_COLUMN].unique().tolist())
 
 # ---- Resolve staged input paths ----
 # PROTEIN_STAGED / CDS_STAGED map genome_id -> the file qc/parse should read.

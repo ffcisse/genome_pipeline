@@ -42,14 +42,27 @@ staging:
 
 # ---- Genome metadata ----
 # One row per genome; drives which genome IDs the pipeline processes (via wildcards)
-# and how they're labeled (group/subgroup) in downstream summaries and figures.
-# The `group`/`subgroup` columns are free-form -- use them for whatever grouping
-# matters for your dataset (the current example data uses them for lifestyle and
-# lineage in a red algae study, but nothing about the pipeline assumes that).
+# and how they're labeled in downstream summaries and figures. Beyond genome_id/name,
+# the remaining columns are free-form -- use them for whatever grouping matters for
+# your dataset (the current example data uses `lifestyle`/`lineage` for a red algae
+# study, but nothing about the pipeline assumes those specific column names or values;
+# see `sensitivity:` below for where those two particular names get used by default).
 genome_table: "config/genomes.tsv"
 
 # ---- Output ----
 output_dir: "results"
+
+# ---- Sensitivity analysis (leave-one-subgroup-out) ----
+# Phase 4's sensitivity_drop_subgroup/sensitivity_leave_one_out rules test
+# whether an apparent effect on `primary_grouping` is actually being driven
+# by one value of the finer-grained `subgroup_column` -- both must be column
+# names from genome_table above. Defaults match this deployment's use case
+# (is the apparent lifestyle effect actually a Galdieria-lineage artifact?),
+# but any two columns work, e.g. a "study"/"batch" column instead of lineage
+# to check for a batch-confound rather than a phylogenetic one.
+sensitivity:
+  primary_grouping: lifestyle
+  subgroup_column: lineage
 
 # ---- SLURM submission (optional) ----
 # Read by workflow/scripts/submit_phase1.sh, which passes these as `sbatch`

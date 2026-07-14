@@ -110,23 +110,76 @@ rule effect_sizes:
         "--master-protein-table {input.protein} --master-cds-table {input.cds} --output {output}"
 
 
-rule sensitivity_drop_galdieria:
+rule sensitivity_drop_subgroup:
     """
-    Stage 5 (Phase 4) -- Quantifies how much of each property's lifestyle
-    effect size is actually a Galdieria-lineage artifact: recomputes
-    extremophile-vs-mesophile rank_biserial with and without the 3 Galdieria
-    genomes. See workflow/scripts/sensitivity_drop_galdieria.py.
+    Stage 5 (Phase 4) -- Leave-one-subgroup-out sensitivity analysis:
+    quantifies how much of each property's SENSITIVITY_PRIMARY_GROUPING
+    effect size is actually driven by one SENSITIVITY_SUBGROUP_COLUMN value
+    (both configured in config.yaml's `sensitivity:` block, e.g. by default
+    "is the apparent lifestyle effect actually a specific lineage's
+    artifact?"). See workflow/scripts/sensitivity_drop_subgroup.py --
+    nothing here or in that script is hardcoded to any one dataset's group
+    names, unlike the single-lineage version this replaced.
+
+    `{subgroup}` is a wildcard, same mechanism as `{genome}`/`{grouping}`
+    elsewhere in this pipeline. Its wildcard_constraints is built FROM THE
+    DATA (SUBGROUPS, computed in the Snakefile from genome_table's
+    SENSITIVITY_SUBGROUP_COLUMN column) rather than a hardcoded regex like
+    effect_sizes' "lifestyle|lineage" -- so it automatically reflects
+    whatever subgroup values genome_table actually has for this dataset,
+    with no edit needed here if genomes are added/removed/relabeled.
+
+    `params:` (as opposed to `input:`) is how a rule passes plain
+    configuration values -- not files Snakemake needs to track for the DAG
+    -- into its shell command. primary_grouping/subgroup_column are the
+    same for every {subgroup} value, so they're fixed params here rather
+    than wildcards.
     """
     input:
         protein=OUTDIR + "/summaries/master_protein_table.csv",
         cds=OUTDIR + "/summaries/master_cds_table.csv",
     output:
-        OUTDIR + "/summaries/sensitivity_drop_galdieria.csv",
+        OUTDIR + "/summaries/sensitivity_drop_{subgroup}.csv",
+    wildcard_constraints:
+        subgroup="|".join(re.escape(s) for s in SUBGROUPS),
+    params:
+        primary_grouping=SENSITIVITY_PRIMARY_GROUPING,
+        subgroup_column=SENSITIVITY_SUBGROUP_COLUMN,
     conda:
         "../envs/summaries.yaml"
     shell:
-        "python workflow/scripts/sensitivity_drop_galdieria.py "
+        "python workflow/scripts/sensitivity_drop_subgroup.py "
+        "--primary-grouping {params.primary_grouping} --subgroup-column {params.subgroup_column} "
+        "--exclude-subgroup {wildcards.subgroup} "
         "--master-protein-table {input.protein} --master-cds-table {input.cds} --output {output}"
+
+
+rule sensitivity_leave_one_out:
+    """
+    Stage 5 (Phase 4) -- Combines every subgroup's sensitivity_drop_{subgroup}.csv
+    into one sweep table (one row per property per excluded subgroup), so
+    you can see how much EACH subgroup individually contributes to the
+    apparent primary-grouping effect, not just one hand-picked subgroup.
+
+    input: uses expand(..., subgroup=SUBGROUPS) to depend on every
+    individual sensitivity_drop_subgroup output -- the same fan-in idiom as
+    merge_protein_table's expand(..., genome=GENOMES), just over SUBGROUPS
+    instead. params.subgroups passes that same list (in the same order) to
+    the combining script, so it can label each file's rows with the
+    subgroup that produced them without having to parse it back out of the
+    filename.
+    """
+    input:
+        expand(OUTDIR + "/summaries/sensitivity_drop_{subgroup}.csv", subgroup=SUBGROUPS),
+    output:
+        OUTDIR + "/summaries/sensitivity_leave_one_out.csv",
+    params:
+        subgroups=SUBGROUPS,
+    conda:
+        "../envs/summaries.yaml"
+    shell:
+        "python workflow/scripts/combine_sensitivity_sweep.py "
+        "--inputs {input} --subgroups {params.subgroups} --output {output}"
 
 
 rule summaries:
@@ -146,7 +199,7 @@ rule summaries:
         master_cds=OUTDIR + "/summaries/master_cds_table.csv",
         species_summary=OUTDIR + "/summaries/species_summary.csv",
         effect_sizes=expand(OUTDIR + "/summaries/effect_sizes_{grouping}.csv", grouping=["lifestyle", "lineage"]),
-        sensitivity=OUTDIR + "/summaries/sensitivity_drop_galdieria.csv",
+        sensitivity=OUTDIR + "/summaries/sensitivity_leave_one_out.csv",
     output:
         OUTDIR + "/summaries/summaries.done",
     shell:
