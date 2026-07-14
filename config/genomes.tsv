@@ -1,10 +1,10 @@
-genome_id	name	group	subgroup
+genome_id	name	lifestyle	lineage
 Cyamer1	Cyanidioschyzon merolae	extremophile	Cyanidiales
 CyamerSoos_1_1	Cyanidioschyzon merolae (Soos strain)	extremophile	Cyanidiales
 Cyanyang1	Cyanidiococcus yangmingshanensis	extremophile	Cyanidiales
 Galph1_1	Galdieria phlegrea	extremophile	Galdieria
 Galsul1	Galdieria sulphuraria	extremophile	Galdieria
 Galyel1	Galdieria yellowstonensis	extremophile	Galdieria
-Porcrue1	Porphyridium cruentum	mesophile	Porphyridiales
-Porpu1328_1	Porphyridium purpureum	mesophile	Porphyridiales
-Rhomari1	Rhodosorus marinus	mesophile	Stylonematophyceae
+Porcrue1	Porphyridium cruentum	mesophile	Mesophile_lineage
+Porpu1328_1	Porphyridium purpureum	mesophile	Mesophile_lineage
+Rhomari1	Rhodosorus marinus	mesophile	Mesophile_lineage
