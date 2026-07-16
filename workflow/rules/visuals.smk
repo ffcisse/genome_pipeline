@@ -105,6 +105,68 @@ rule plot_cds_distributions:
         "--output-dir {output}"
 
 
+rule plot_pca:
+    """
+    Stage 6 (Phase 5) -- PCA of the protein property matrix, at both
+    per-protein and per-species (genome median) resolution, colored by
+    primary_grouping and separately by subgroup_column, plus loadings
+    showing which properties drive PC1/PC2. See workflow/scripts/plot_pca.py
+    -- genome-agnostic construction as elsewhere; species-median points are
+    labeled with genome IDs from genome_table, so an outlier genome is
+    identifiable directly on the plot for whatever dataset this runs on.
+    """
+    input:
+        protein=OUTDIR + "/summaries/master_protein_table.csv",
+        species_summary=OUTDIR + "/summaries/species_summary.csv",
+    output:
+        directory(OUTDIR + "/plots/pca"),
+    params:
+        primary_grouping=SENSITIVITY_PRIMARY_GROUPING,
+        subgroup_column=SENSITIVITY_SUBGROUP_COLUMN,
+        primary_order=GROUP_VALUE_ORDER.get(SENSITIVITY_PRIMARY_GROUPING, []),
+        subgroup_order=GROUP_VALUE_ORDER.get(SENSITIVITY_SUBGROUP_COLUMN, []),
+        exclude_properties=VISUALS_EXCLUDE_PROPERTIES,
+    conda:
+        "../envs/visuals.yaml"
+    shell:
+        "python workflow/scripts/plot_pca.py "
+        "--master-protein-table {input.protein} --species-summary {input.species_summary} "
+        "--primary-grouping {params.primary_grouping} --subgroup-column {params.subgroup_column} "
+        "--primary-order {params.primary_order} --subgroup-order {params.subgroup_order} "
+        "--exclude-properties {params.exclude_properties} "
+        "--output-dir {output}"
+
+
+rule plot_clustering:
+    """
+    Stage 6 (Phase 5) -- Two clustering views: hierarchical clustering
+    heatmap of genomes x properties (z-scored medians, dendrogram over
+    genomes, row color strips for both groupings), and a property-property
+    Spearman correlation heatmap (also hierarchically clustered, to reveal
+    which properties move together). See workflow/scripts/plot_clustering.py.
+    """
+    input:
+        protein=OUTDIR + "/summaries/master_protein_table.csv",
+        species_summary=OUTDIR + "/summaries/species_summary.csv",
+    output:
+        directory(OUTDIR + "/plots/clustering"),
+    params:
+        primary_grouping=SENSITIVITY_PRIMARY_GROUPING,
+        subgroup_column=SENSITIVITY_SUBGROUP_COLUMN,
+        primary_order=GROUP_VALUE_ORDER.get(SENSITIVITY_PRIMARY_GROUPING, []),
+        subgroup_order=GROUP_VALUE_ORDER.get(SENSITIVITY_SUBGROUP_COLUMN, []),
+        exclude_properties=VISUALS_EXCLUDE_PROPERTIES,
+    conda:
+        "../envs/visuals.yaml"
+    shell:
+        "python workflow/scripts/plot_clustering.py "
+        "--master-protein-table {input.protein} --species-summary {input.species_summary} "
+        "--primary-grouping {params.primary_grouping} --subgroup-column {params.subgroup_column} "
+        "--primary-order {params.primary_order} --subgroup-order {params.subgroup_order} "
+        "--exclude-properties {params.exclude_properties} "
+        "--output-dir {output}"
+
+
 rule visuals:
     """
     Stage 6 -- Generate summary figures from the cross-genome summary tables
