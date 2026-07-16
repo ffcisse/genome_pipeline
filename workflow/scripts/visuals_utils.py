@@ -140,13 +140,15 @@ def _boxplot_axes(data, order, colors, ylabel, xlabel, title):
 
 
 def boxplot_by_group(df, prop, group_col, order, colors, title, output_dir, name):
-    data = [df.loc[df[group_col] == g, prop].dropna() for g in order]
+    values = df[prop].astype(float)
+    data = [values[df[group_col] == g].dropna() for g in order]
     fig, ax, _ = _boxplot_axes(data, order, colors, prop, group_col, title)
     save_figure(fig, output_dir, name)
 
 
 def violin_by_group(df, prop, group_col, order, colors, title, output_dir, name):
-    data = [df.loc[df[group_col] == g, prop].dropna() for g in order]
+    values = df[prop].astype(float)
+    data = [values[df[group_col] == g].dropna() for g in order]
     fig, ax = plt.subplots(figsize=(max(4, len(order) * 0.9), 5))
     parts = ax.violinplot(data, showmedians=True)
     for i, body in enumerate(parts["bodies"]):
@@ -161,7 +163,8 @@ def violin_by_group(df, prop, group_col, order, colors, title, output_dir, name)
 
 
 def boxplot_by_species(df, prop, genome_order, genome_colors, subgroup_col, output_dir, name):
-    data = [df.loc[df["genome"] == g, prop].dropna() for g in genome_order]
+    values = df[prop].astype(float)
+    data = [values[df["genome"] == g].dropna() for g in genome_order]
     fig, ax, bp = _boxplot_axes(
         data, genome_order, genome_colors, prop, "genome", f"{prop} by genome (colored by {subgroup_col})"
     )
@@ -174,8 +177,9 @@ def boxplot_by_species(df, prop, genome_order, genome_colors, subgroup_col, outp
 
 def hist_kde_by_group(df, prop, group_col, order, colors, title, output_dir, name):
     fig, ax = plt.subplots(figsize=(6.5, 5))
+    plot_df = df[[prop, group_col]].assign(**{prop: df[prop].astype(float)})
     sns.histplot(
-        data=df,
+        data=plot_df,
         x=prop,
         hue=group_col,
         hue_order=order,
