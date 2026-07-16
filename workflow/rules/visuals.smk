@@ -167,6 +167,56 @@ rule plot_clustering:
         "--output-dir {output}"
 
 
+rule plot_effect_sizes:
+    """
+    Stage 6 (Phase 5) -- Forest/bar plots of Phase 4's rank-biserial effect
+    sizes, sorted by magnitude: one figure for the primary grouping, one
+    per pairwise comparison for the subgroup grouping. See
+    workflow/scripts/plot_effect_sizes.py -- reads Phase 4's
+    effect_sizes_<grouping>.csv directly, no stats recomputed. How many
+    subgroup figures get made depends entirely on how many pairwise
+    comparisons that CSV has (itself driven by how many distinct subgroup
+    values genome_table has) -- not hardcoded to any particular count.
+    """
+    input:
+        primary=OUTDIR + "/summaries/effect_sizes_{}.csv".format(SENSITIVITY_PRIMARY_GROUPING),
+        subgroup=OUTDIR + "/summaries/effect_sizes_{}.csv".format(SENSITIVITY_SUBGROUP_COLUMN),
+    output:
+        directory(OUTDIR + "/plots/effect_sizes"),
+    params:
+        primary_grouping=SENSITIVITY_PRIMARY_GROUPING,
+        subgroup_column=SENSITIVITY_SUBGROUP_COLUMN,
+        top_n=VISUALS_TOP_N_EFFECT_SIZES,
+    conda:
+        "../envs/visuals.yaml"
+    shell:
+        "python workflow/scripts/plot_effect_sizes.py "
+        "--effect-sizes-primary {input.primary} --effect-sizes-subgroup {input.subgroup} "
+        "--primary-grouping {params.primary_grouping} --subgroup-column {params.subgroup_column} "
+        "--top-n {params.top_n} --output-dir {output}"
+
+
+rule plot_sensitivity:
+    """
+    Stage 6 (Phase 5) -- The leave-one-out sensitivity "money figure": a
+    heatmap of shrinkage (top properties x excluded subgroup), showing at a
+    glance which subgroup(s) drive each property's apparent primary-grouping
+    effect. See workflow/scripts/plot_sensitivity.py -- reads Phase 4's
+    sensitivity_leave_one_out.csv directly, no stats recomputed.
+    """
+    input:
+        OUTDIR + "/summaries/sensitivity_leave_one_out.csv",
+    output:
+        directory(OUTDIR + "/plots/sensitivity"),
+    params:
+        top_n=VISUALS_TOP_N_EFFECT_SIZES,
+    conda:
+        "../envs/visuals.yaml"
+    shell:
+        "python workflow/scripts/plot_sensitivity.py "
+        "--sensitivity-leave-one-out {input} --top-n {params.top_n} --output-dir {output}"
+
+
 rule visuals:
     """
     Stage 6 -- Generate summary figures from the cross-genome summary tables
