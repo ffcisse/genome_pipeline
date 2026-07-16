@@ -79,6 +79,20 @@ group_value_order:
   lifestyle: [extremophile, mesophile]
   lineage: [Galdieria, Cyanidiales, Mesophile_lineage]
 
+# ---- Visualization (Phase 5, optional) ----
+# Every property plotted individually (boxplots, histograms/KDE) comes from
+# whichever numeric columns are actually present in the master tables minus
+# structural/label columns (same selection Phase 4 uses) -- nothing here
+# names a property. exclude_properties additionally drops specific columns
+# from those per-property plots (e.g. a property that isn't meaningful on
+# its own, or is redundant with another view) without touching any script;
+# leave empty to plot everything. top_n_effect_sizes caps how many
+# properties the effect-size/sensitivity figures show (sorted by
+# magnitude) -- full results always remain in the Phase 4 CSVs regardless.
+visuals:
+  exclude_properties: []
+  top_n_effect_sizes: 25
+
 # ---- SLURM submission (optional) ----
 # Read by workflow/scripts/submit_phase1.sh, which passes these as `sbatch`
 # CLI flags (account/QOS/partition/notification email are cluster- and

@@ -61,6 +61,11 @@ SUBGROUPS = sorted(genome_df[SENSITIVITY_SUBGROUP_COLUMN].unique().tolist())
 GROUPING_COLUMNS = [SENSITIVITY_PRIMARY_GROUPING, SENSITIVITY_SUBGROUP_COLUMN]
 GROUP_VALUE_ORDER = config.get("group_value_order", {})
 
+# ---- Visualization (Phase 5) config ----
+_visuals_config = config.get("visuals", {})
+VISUALS_EXCLUDE_PROPERTIES = _visuals_config.get("exclude_properties", [])
+VISUALS_TOP_N_EFFECT_SIZES = _visuals_config.get("top_n_effect_sizes", 25)
+
 # ---- Resolve staged input paths ----
 # PROTEIN_STAGED / CDS_STAGED map genome_id -> the file qc/parse should read.
 # Default (no staging configured): protein_dir/cds_dir already contain flat

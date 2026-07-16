@@ -1,0 +1,23 @@
+# Conda environment for the Phase 5 visuals rules (plot_boxplots,
+# plot_distributions, plot_cds_distributions, plot_pca, plot_clustering,
+# plot_effect_sizes, plot_sensitivity). Separate from envs/analysis.yaml/
+# summaries.yaml for the same reason as those: scikit-learn (PCA) is a real
+# extra dependency none of the earlier stages need, and there's no reason to
+# make qc/parse/protein_properties/cds_properties carry it.
+#
+# KNOWN LANDMINE (see workflow/rules/disorder.smk's shell-command comment
+# and SLURM.md): --use-conda environments have broken inside real SLURM
+# jobs on this deployment more than once, despite working fine when tested
+# interactively on a login node. This env was tested inside a real SLURM
+# job before being trusted here -- do the same for any future change to it.
+name: visuals
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - seaborn
