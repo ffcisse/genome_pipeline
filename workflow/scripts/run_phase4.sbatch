@@ -24,7 +24,8 @@
 # master_protein_table.csv/master_cds_table.csv, species_summary.csv, and
 # the configurable-grouping effect-size tables (rules `merge_protein_table`,
 # `merge_cds_table`, `species_summary`, `effect_sizes`,
-# `sensitivity_drop_galdieria` -- see workflow/rules/summaries.smk). Pure
+# `sensitivity_drop_subgroup`/`sensitivity_leave_one_out` -- see
+# workflow/rules/summaries.smk). Pure
 # pandas/scipy over already-computed per-gene tables (61,349 rows) -- light,
 # same small allocation as Phase 2a/3, measured ~40s end to end in testing.
 #

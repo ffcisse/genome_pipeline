@@ -9,9 +9,11 @@ rule parse:
     input matches the `qc` rule's output pattern, and automatically schedules qc
     to run first for that genome.
 
-    Outputs both the two canonical tables and the original ".parsed.done"
-    marker, so downstream stub rules (protein_properties, cds_properties),
-    which still depend on the marker path, don't need to change yet.
+    Outputs both the two canonical tables and a ".parsed.done" marker from
+    the original Phase 0 scaffold. protein_properties/cds_properties read
+    the real tables directly now, not the marker -- it's kept only because
+    nothing has needed removing it, not because anything still depends on
+    it.
     """
     input:
         qc=OUTDIR + "/qc/{genome}.qc.done",

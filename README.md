@@ -1,164 +1,361 @@
 # Genome Comparison Pipeline
 
-Reproducible Snakemake pipeline for comparative genomics: given a set of genomes' protein + CDS
-FASTA files, it computes per-protein and per-gene properties, cross-genome summary statistics,
-and figures (and, later, an interactive dashboard). The pipeline itself is genome-agnostic --
-edit `config/genomes.tsv` and point the input directories at new FASTA files to run it on a
-different set of genomes.
+A reproducible Snakemake pipeline for comparative genomics. Point it at a set of genomes'
+protein + CDS FASTA files and it computes per-protein and per-gene properties, merges them into
+cross-genome master tables, and runs configurable group-comparison statistics (effect sizes and
+a leave-one-subgroup-out sensitivity analysis).
 
-**Current example dataset:** 9 red algae (Rhodophyta) proteomes from a lifestyle-comparison
-study -- 6 extremophiles (Cyanidiales: `Cyamer1`, `CyamerSoos_1_1`, `Cyanyang1`; *Galdieria*:
-`Galph1_1`, `Galsul1`, `Galyel1`) and 3 mesophiles (`Porcrue1`, `Porpu1328_1`, `Rhomari1`).
-Refactors validated exploratory-notebook analysis into modular, reproducible pipeline stages.
+**The pipeline is genome-agnostic.** It was built against 9 red algae (Rhodophyta) genomes from
+a lifestyle-comparison study (verified end to end: 61,349 proteins / 61,349 CDS across all 9),
+but nothing in the code assumes red algae, that species count, or those specific property
+values — including the grouping columns used for effect sizes and the sensitivity analysis
+(`lifestyle`/`lineage` here are config values, not hardcoded names). Point `config/config.yaml`
+and `config/genomes.tsv` at a different set of genomes and the same rules apply; see
+[Configuration](#configuration) for exactly what to edit.
 
-**Status: Phase 2a done.** `stage_inputs`, `qc`, `parse`, and `protein_properties` now contain
-real logic (see `workflow/scripts/`); `cds_properties`, `summaries`, `visuals`, and `dashboard`
-are still `touch`-only stubs from the Phase 0 scaffold (see bottom of this file).
+## What it does
 
-## Planned stages
-0. `stage_inputs` -- **done.** Symlink real per-genome FASTA into a flat layout (optional; only
-   runs if `staging.source_dir` is set)
-1. `qc` -- **done.** Input FASTA quality checks (per genome) -- writes a report to
-   `results/qc/<genome_id>.qc.done`
-2. `parse` -- **done.** Parse protein + CDS FASTA into canonical tables (per genome) --
-   `results/parsed/<genome_id>/protein_table.csv` and `.../cds_table.csv`
-3. `protein_properties` -- **done (Phase 2a).** Lightweight per-protein physicochemical
-   properties (composition, pI/GRAVY, aliphatic index, instability, charge, aggregation
-   propensity -- no intrinsic disorder, that's Phase 2b) -- `results/protein_properties/
-   <genome_id>/protein_properties.csv`. Intrinsic disorder prediction lands separately in Phase
-   2b as its own (heavier, SLURM-per-genome) rule.
-4. `cds_properties` -- *stub.* GC/GC3/codon usage/ENC per gene (per genome)
-5. `summaries` -- *stub.* Cross-genome summary tables (all genomes)
-6. `visuals` -- *stub.* Summary figures (all genomes)
-7. `dashboard` -- *stub.* Interactive dashboard (deferred; empty rule for now)
+**In:** one protein FASTA + one CDS FASTA per genome, plus a genome metadata table
+(`config/genomes.tsv`) with at least a genome ID and two grouping columns.
 
-## How to run
+**Out:**
+- Per-genome tables: physicochemical protein properties, intrinsic disorder, codon usage/ENC/GC
+  content
+- Cross-genome master tables (all genomes' per-gene data joined with group labels)
+- A species-level summary table (median/mean/std of every property, per genome)
+- Effect-size tables comparing genomes by any grouping column you configure (e.g. lifestyle,
+  lineage, or your own)
+- A leave-one-subgroup-out sensitivity analysis, to check whether an apparent group difference is
+  actually being driven by one phylogenetic subgroup rather than the grouping you think you're
+  testing
 
-### 1. Get input data
-Point `config/config.yaml`'s `input.protein_dir` / `input.cds_dir` at a directory containing one
-protein FASTA and one CDS FASTA per genome, named `<genome_id>.fasta` (genome IDs from
-`config/genomes.tsv`).
+## Status
 
-Don't have flat `<genome_id>.fasta` files? If your downloads are nested and gzipped/tarred
-(e.g. a Mycocosm-style download tree), set `config/config.yaml`'s `staging.source_dir` instead --
-the `stage_inputs` rule symlinks each genome's real file into `protein_dir`/`cds_dir` for you.
-See the comments above the `staging:` block in `config.yaml` for the expected layout.
+| Phase | Rule(s) | Status | What it produces |
+|---|---|---|---|
+| 0 | `stage_inputs` | done (optional) | Symlinks real FASTA into the flat layout the rest of the pipeline expects |
+| 1 | `qc`, `parse` | done | QC report; canonical parsed protein/CDS tables |
+| 2a | `protein_properties` | done | Composition, pI, GRAVY, aliphatic index, instability, charge, aggregation propensity |
+| 2b | `disorder` | done (**heavy**) | Intrinsic disorder via metapredict (a PyTorch model) |
+| 3 | `cds_properties` | done | ENC, GC, GC3s, codon usage, start/stop codons via codonW |
+| 4 | `merge_*`, `species_summary`, `effect_sizes`, `sensitivity_*` | done | Master tables, species summary, effect sizes, sensitivity analysis |
+| 5 | `visuals` | **stub** | Touches a marker file only — no figures yet |
+| 6 | `dashboard` | **stub** | Touches a marker file only — no dashboard yet |
 
-Don't have the files yet at all? See `workflow/scripts/download_from_jgi.sh` -- an **optional**,
-standalone helper for downloading from JGI Mycocosm. It is NOT part of this pipeline's DAG and
-must be run separately, on Perlmutter/DTN (not DORI) -- see the comments in that script for why.
-Or supply the files any other way you like; the pipeline doesn't care how they got there.
+## Repo layout
 
-### 2. Set up the environment
+```
+config/
+  config.yaml         All pipeline settings -- see Configuration below
+  genomes.tsv          Genome metadata: IDs + grouping columns
+workflow/
+  Snakefile            Entry point: loads config, defines rule all, includes rule files
+  rules/*.smk          One file per pipeline stage
+  scripts/*.py         Python implementing each rule's logic
+  scripts/run_phase*.sbatch, submit_phase*.sh   Per-phase SLURM submission
+  envs/*.yaml          Per-rule conda environment specs
+resources/input/       Input FASTA (gitignored except directory structure)
+results/                Pipeline outputs (gitignored, regenerated by the pipeline)
+logs/                   SLURM job logs (gitignored except directory structure)
+SLURM.md                DORI/SLURM-specific notes (submission model, conda-in-SLURM caveat)
+```
+
+## Quickstart
+
 ```bash
+git clone <this-repo>
+cd genome_pipeline
+
+# 1. Conda env with Snakemake itself
 conda create -n snakemake -c conda-forge -c bioconda snakemake
 conda activate snakemake
-```
-Per-rule environments (biopython/pandas/numpy/scipy/matplotlib/seaborn) are handled
-automatically via `--use-conda` -- see `workflow/envs/`.
 
-### 3. Dry run -- check the plan without running anything
+# 2. Point config at your genomes (see Configuration below)
+#    - config/genomes.tsv: one row per genome
+#    - config/config.yaml: input.protein_dir / input.cds_dir, or staging.source_dir
+$EDITOR config/genomes.tsv
+$EDITOR config/config.yaml
+
+# 3. Dry run -- see what would happen, without running anything
+snakemake -n
+
+# 4. Run it
+snakemake --cores 4 --use-conda          # locally (small datasets / a login node's own cores)
+# or, on a SLURM cluster:
+workflow/scripts/submit_phase1.sh        # see "Running it" below for the full phase list
+```
+
+No code editing required to point this at a different genome set — just `config/genomes.tsv` and
+`config/config.yaml`, including the grouping columns used for effect sizes/sensitivity analysis
+(see [Configuration](#configuration)). See [Known limitations](#known-limitations) for the
+remaining rough edges.
+
+## Configuration
+
+This is the section that matters most. Two files drive everything; nothing else needs editing to
+run on a new genome set.
+
+### `config/config.yaml`
+
+| Key | Required? | Meaning |
+|---|---|---|
+| `input.mode` | yes | Only `existing_dir` is implemented. |
+| `input.protein_dir` | yes | Directory of per-genome protein FASTA, named `<genome_id>.fasta` (or see `staging` below). |
+| `input.cds_dir` | yes | Same, for CDS FASTA. |
+| `staging.source_dir` | no | Set this instead of pre-flattening `protein_dir`/`cds_dir` yourself — see [Input requirements](#input-requirements). Omit the whole `staging:` block if your files are already flat. |
+| `staging.protein_subdir` | no (default `proteome_files`) | Subdirectory name under `source_dir` holding protein downloads. |
+| `staging.cds_subdir` | no (default `cds_files`) | Same, for CDS downloads. |
+| `genome_table` | yes | Path to the genome metadata TSV (see below). Default `config/genomes.tsv`. |
+| `output_dir` | yes | Where results land. Default `results`. |
+| `sensitivity.primary_grouping` | yes | Column in `genome_table` to test as the "main" grouping (e.g. `lifestyle`) — must have exactly 2 distinct values. |
+| `sensitivity.subgroup_column` | yes | Column in `genome_table` whose values get dropped one at a time in the sensitivity sweep (e.g. `lineage`). |
+| `group_value_order` | no | Optional: pins which value of a grouping column is "A" (vs "B") in `cles`/`rank_biserial`, and the order pairwise comparisons are generated in for a >2-value column. A dict of `column: [value, value, ...]`; omit a column (or the whole block) for alphabetical order instead. See [Configuration](#configuration) below. |
+| `slurm.account` / `slurm.qos` / `slurm.partition` / `slurm.mail_user` | no, but **deployment-specific** | Passed to `sbatch` by the `submit_phase*.sh` wrappers. **You must change these** — they're this deployment's cluster allocation and email, not yours. Leave `partition: ""` if your cluster doesn't need one. |
+
+### `config/genomes.tsv`
+
+Tab-separated, one row per genome:
+
+| Column | Required? | Meaning |
+|---|---|---|
+| `genome_id` | **yes** | Must match the `<genome_id>` in your FASTA filenames (or staging source tree). Drives every `{genome}` wildcard in the pipeline. |
+| `name` | no | Free-text display name, not used in any computation. |
+| *(two grouping columns)* | **yes** | Column names and values are fully configurable — see below. |
+
+**The grouping design:** the statistics in Phase 4 need two grouping variables:
+- A **primary grouping** with exactly 2 values (e.g. `lifestyle`: extremophile/mesophile) — this
+  is what `effect_sizes_<grouping>.csv` and the sensitivity analysis test.
+- A **subgroup column**, typically finer-grained and nested inside the primary grouping (e.g.
+  `lineage`: a phylogenetic clade) — this is what the leave-one-subgroup-out sensitivity analysis
+  drops one value of at a time.
+
+`config.yaml`'s `sensitivity.primary_grouping`/`subgroup_column` say which two `genomes.tsv`
+columns play these roles — rename `lifestyle`/`lineage` to whatever you want (different column
+names, different values, a 2-value or N-value column either way) and repoint these two config
+keys at them. Nothing in `workflow/scripts/` hardcodes a column name or value: the master tables,
+`species_summary.csv`, `effect_sizes_<grouping>.csv`, and the sensitivity analysis all derive both
+the grouping column names and the comparison order from config/`genomes.tsv`, not from code.
+
+**Which value is "A"?** For any grouping column, `cles`/`rank_biserial` need a direction — which
+value counts as "A" (vs "B"), and, for a >2-value column, what order pairwise comparisons are
+generated in. That's an analyst framing choice (which group are you testing *for*), not something
+derivable from the data alone, so it's a separate, optional config key:
+`config.yaml`'s `group_value_order`. Leave a column out of it (or omit the whole block) and its
+values sort alphabetically instead — either way, nothing needs a code change.
+
+**A third grouping dimension** (beyond the two `sensitivity:` already names) isn't wired up by
+default — `workflow/Snakefile`'s `GROUPING_COLUMNS` list is built from exactly
+`sensitivity.primary_grouping`/`subgroup_column`, so those are the only two columns that
+automatically flow into the master tables and get an `effect_sizes_<grouping>.csv`. Every script
+already accepts an arbitrary set of group columns (nothing to edit there); adding a third means
+adding a config key and one line in the Snakefile to fold it into `GROUPING_COLUMNS` — see
+[Known limitations](#known-limitations) for exactly what that would look like.
+
+## Input requirements
+
+Each genome needs a protein FASTA and a CDS FASTA. Two ways to point the pipeline at them:
+
+1. **Flat layout (simplest):** put `<genome_id>.fasta` (optionally `.gz` or `.tar.gz` — the
+   `qc`/`parse` scripts handle plain, gzipped, and gzipped-tar-with-one-member transparently) in
+   `input.protein_dir` / `input.cds_dir`.
+2. **Nested download tree:** if your files live several directories deep (e.g. a Mycocosm-style
+   download), set `staging.source_dir` in `config.yaml`. The `stage_inputs` rule finds, for each
+   genome, the single file matching `source_dir/<protein_subdir|cds_subdir>/<genome_id>/**/*.fasta*`
+   and symlinks it into the flat layout above — real extension preserved, no decompression.
+
+**Optional JGI download helper:** `workflow/scripts/download_from_jgi.sh` documents how to fetch
+FASTA from JGI Mycocosm/Phycocosm. Be aware:
+- It is **not wired into the pipeline** — a standalone, manual step.
+- It must run on a **NERSC Perlmutter DTN** (JGI's download service isn't reachable from most
+  other places), not wherever you run the rest of this pipeline.
+- **As shipped, it's a documented stub** — it prints a message and exits immediately; the real
+  `portal-apps-bootstrap.sh` invocation is commented out below the stub, to be filled in once you
+  have that tool available. Read the comments in the script before relying on it.
+- If your genomes are on **private** Mycocosm/Phycocosm portals, the real invocation needs
+  `--use-non-public-portals true` — omitting it silently returns nothing for private-portal
+  genomes.
+- None of this matters if you already have the FASTA files from anywhere else — just point
+  `config.yaml` at them.
+
+## Running it
+
+### Dry run
+
 ```bash
 snakemake -n
 ```
 
-### 4. Visualize the DAG
-```bash
-snakemake --dag | dot -Tpng > dag.png
+Shows the full job plan without executing anything: which rules will run, for which genomes, and
+why (missing output, changed input, etc.). Always run this after a config change. Add `-p` to
+also print each job's actual shell command, or `--dag | dot -Tpng > dag.png` to render the
+dependency graph visually.
+
+### Per-phase SLURM submission
+
+Each phase has a `submit_phaseN.sh` wrapper (reads `config.yaml`'s `slurm:` block and passes it to
+`sbatch`) around a `run_phaseN.sbatch` script:
+
+| Script | Runs | Resources | Notes |
+|---|---|---|---|
+| `submit_phase1.sh` | `stage_inputs`→`qc`→`parse` | 4 CPU / 16G / 1h | Light |
+| `submit_phase2a.sh` | `protein_properties` | 4 CPU / 16G / 30min | Light |
+| `submit_phase2b.sh` | `disorder` | **64 CPU (exclusive node) / all memory / 1.5h** | **Heavy — see warning below** |
+| `submit_phase3.sh` | `cds_properties` | 4 CPU / 16G / 30min | Light |
+| `submit_phase4.sh` | `merge_*`/`species_summary`/`effect_sizes`/`sensitivity_*` | 4 CPU / 16G / 30min | Light |
+
+Each script runs `snakemake --cores $SLURM_CPUS_PER_TASK --use-conda` locally inside one SLURM
+allocation (not Snakemake's separate cluster-executor-plugin model), so running an earlier
+phase's script again after later work is done is harmless — it just confirms everything's already
+up to date. Phases 1, 2a, 3, and 4 build their outputs as part of `rule all`'s default target, so
+their submit scripts run bare `snakemake`; Phase 2b's `disorder` output is deliberately *not* part
+of `rule all` (see below), so `submit_phase2b.sh` names its targets explicitly.
+
+Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your site has defaults for
+account/QOS/mail-user — the wrapper is what supplies those from `config.yaml`.
+
+**⚠️ Phase 2b (`disorder`) is heavy.** It loads a real PyTorch model and runs inference over every
+protein. Manual single-threaded testing needed ~2h/genome, which is why this rule requests a full
+64-core exclusive node (the resource sizing behind `run_phase2b.sbatch`'s 1.5h budget); the
+pipeline's actual batched implementation is considerably faster in practice — the verified
+9-genome, 61,349-protein run finished in under 10 minutes on that allocation. Budget for the
+heavier estimate regardless (node contention and dataset size both vary), and don't run this rule
+inline on a shared login node.
+
+**Logs** land in `logs/phaseN_<jobid>.{out,err}`.
+
+**SLURM values you must change:** `config.yaml`'s `slurm:` block (`account`, `qos`, `partition`,
+`mail_user`) is this deployment's cluster allocation and email address — update it for yours
+before submitting anything. See [`SLURM.md`](SLURM.md) for DORI/SLURM-specific notes beyond what's
+in this README (the `--use-conda`-in-SLURM testing discipline, per-rule `resources:`, and why
+there's no cluster-executor-plugin model here).
+
+## Outputs
+
+```
+results/
+├── qc/<genome>.qc.done                          # human-readable QC report (not just a marker)
+├── parsed/<genome>/{protein,cds}_table.csv       # canonical per-gene sequence tables
+├── protein_properties/<genome>/protein_properties.csv
+├── disorder/<genome>/disorder.csv
+├── cds_properties/<genome>/{cds_properties,codon_usage}.csv
+└── summaries/
+    ├── master_protein_table.csv                 # all genomes' protein_properties + disorder + group labels
+    ├── master_cds_table.csv                     # all genomes' cds_properties + codon_usage + group labels
+    ├── species_summary.csv                      # one row per genome
+    ├── effect_sizes_<grouping>.csv               # one per configured grouping (default: lifestyle, lineage)
+    ├── sensitivity_drop_<subgroup>.csv           # one per subgroup value
+    └── sensitivity_leave_one_out.csv             # all subgroups combined
 ```
 
-### 5. Run for real (locally)
-```bash
-snakemake --cores 4 --use-conda
-```
-**If you're on a shared login node** (e.g. DORI's), don't run the full multi-genome dataset this
-way -- it's fine for a quick check against one genome (`snakemake --cores 1 --use-conda
-results/qc/<genome_id>.qc.done`) or a small subset, but a full run belongs in a SLURM job (step 6
-below) so it doesn't compete with other users' interactive work.
+### Key table columns
 
-### 6. Run on DORI (SLURM)
-See [`SLURM.md`](SLURM.md) for the executor-plugin setup and submission command. For the full
-dataset, `workflow/scripts/submit_phase1.sh` / `submit_phase2a.sh` each submit a single sbatch
-job (staging/qc/parse, and protein_properties, respectively), configured via `config/config.yaml`'s
-`slurm:` block (requires PyYAML in whichever `python3` is on `PATH` -- already satisfied if you
-followed step 2, since it's a Snakemake dependency). Both run `snakemake` with no explicit
-target, so each one also picks up any earlier stage that isn't done yet.
+**`master_protein_table.csv`** (29 cols; one row per protein, 61,349 in the verified dataset) —
+`genome`, `protein_id`, `sequence`, `length`, composition (`pct_charged`, `pct_acidic`,
+`pct_basic`, `pct_hydrophobic`, `pct_polar`, `pct_aromatic`, `pct_special`), `pI`, `gravy`,
+`instability_index`, `net_charge_pH7`, `aliphatic_index`, `thermostable_fraction`,
+`cysteine_fraction`, `carbon_oxidation_state`, `charge_density`, aggregation
+(`agg_mean_a3v`, `agg_Na4vSS`, `agg_hotspot_fraction`), disorder (`disorder_mean`,
+`disorder_fraction`, `longest_idr`, `n_idrs`), plus your configured group columns
+(`lifestyle`, `lineage` by default).
 
-## Repo layout
-```
-config/              Config file + genome metadata table
-  config.yaml
-  genomes.tsv
-workflow/
-  Snakefile          Entry point: loads config, defines rule all, includes rule files
-  rules/             One .smk file per pipeline stage
-  scripts/           Helper scripts, incl. the standalone JGI download helper
-  envs/              Per-rule conda environment specs
-resources/           Input data (gitignored except directory structure)
-results/             Pipeline outputs (gitignored, regenerated by the pipeline)
-logs/                SLURM job logs (gitignored except directory structure)
-SLURM.md             DORI/SLURM execution notes
-```
+**`master_cds_table.csv`** (77 cols) — `genome`, `cds_id`, `length`, `is_multiple_of_3`, `enc`
+(effective number of codons, ~20-61), `gc`, `gc3s` (both proportions in **[0, 1]**, not
+percentages), `start_codon`, `stop_codon`, `has_canonical_start`, `has_canonical_stop`, 64
+`codon_<TRIPLET>` raw-count columns, plus group columns.
 
-## Portability
+**`species_summary.csv`** (one row per genome, 290 cols in the verified dataset) — `genome`,
+group columns, `n_proteins`, `n_cds`, then `<property>_median`/`_mean`/`_std` for every numeric
+property in both master tables (95 properties × 3 stats).
 
-The pipeline runs on any set of genomes by editing **config only** -- `config/config.yaml` and
-`config/genomes.tsv`. Nothing genome- or user-specific is hardcoded in `workflow/`.
+**`effect_sizes_<grouping>.csv`** — `property`, `table` (`protein`/`cds` — needed because a few
+property names, e.g. `length`, exist in both tables with different meanings), `group_a`,
+`group_b`, `n_a`, `n_b`, `median_a`, `median_b`, `p_value`, `cles`, `rank_biserial`. One row per
+property for a 2-value grouping; one row per property per pair for an N-value grouping (e.g. 3
+pairwise rows per property for a 3-value `lineage`). Sorted by `|rank_biserial|` descending.
 
-**Config-driven (edit these, no code changes needed):**
-| Setting | Where | Purpose |
-|---|---|---|
-| Genome list + labels | `config/genomes.tsv` | Which genomes to process, and their group/subgroup labels |
-| `input.protein_dir` / `input.cds_dir` | `config/config.yaml` | Where qc/parse read FASTA from |
-| `staging.source_dir` | `config/config.yaml` | Optional: root of a nested/gzipped download tree to symlink from |
-| `staging.protein_subdir` / `staging.cds_subdir` | `config/config.yaml` | Optional: top-level folder names under `source_dir` (default `proteome_files`/`cds_files` -- this deployment's convention, not a standard) |
-| `output_dir` | `config/config.yaml` | Where results land |
-| `slurm.account` / `slurm.qos` / `slurm.partition` / `slurm.mail_user` | `config/config.yaml` | Used by `workflow/scripts/submit_phase1.sh`/`submit_phase2a.sh` to submit their sbatch jobs |
+**`sensitivity_leave_one_out.csv`** — `excluded_subgroup`, `property`, `table`,
+`rank_biserial_full`, `rank_biserial_excluded`, `shrinkage`. See
+[Interpreting the statistics](#interpreting-the-statistics) for what `shrinkage` means.
 
-**Legitimately environment/deployment-specific (documented, not config knobs):**
-- **The cluster itself** (DORI, SLURM) -- `SLURM.md`, and the `--executor slurm` setup, assume
-  a SLURM scheduler. A different site means different scheduler commands throughout, not just a
-  config value.
-- **Conda/environment bootstrapping** in `workflow/scripts/run_phase1.sbatch` and
-  `run_phase2a.sbatch` -- both try `PATH` first, and only fall back to sourcing
-  `~/anaconda3/etc/profile.d/conda.sh` (overridable via `$CONDA_BASE`) if `snakemake` isn't
-  already on `PATH`. How conda/mamba/modules get initialized varies by site and happens before
-  any Python/YAML config can be read, so it can't be fully config-driven -- if your site's conda
-  lives somewhere else or uses modules, edit that one fallback line (in both files).
-- **`workflow/scripts/download_from_jgi.sh`** -- an optional, standalone helper that must run on
-  Perlmutter/DTN (JGI's download infrastructure requirement), not wherever the rest of the
-  pipeline runs. Not part of the DAG; skip it entirely if you already have FASTA files.
-- **`workflow/envs/analysis.yaml`** -- pinned package list (biopython/pandas/etc.), not
-  genome-specific, but you may need to adjust it if a future stage needs new dependencies.
+## Interpreting the statistics
 
-**What I checked and found already genome-agnostic (no changes needed):** every script under
-`workflow/scripts/*.py` and every rule in `workflow/rules/*.smk` -- none reference a specific
-genome ID, species name, or absolute path. The `resources/*.ipynb` exploratory notebooks (not
-part of the executable pipeline, untracked reference material) do hardcode the red-algae
-species/paths from the original analysis, but they're never read by Snakemake.
+**p-values are not the signal here.** With ~61,000 proteins/CDS, Mann-Whitney p-values collapse
+to ~0 for almost every property regardless of whether the difference is biologically meaningful —
+they're reported for reference, not as evidence of importance.
 
-## Adapting this pipeline to a new genome set
+**Use CLES and rank-biserial instead:**
+- `cles` (common-language effect size) = the probability a randomly picked member of `group_a`
+  exceeds a randomly picked member of `group_b`. 0.5 = no difference.
+- `rank_biserial` = `2*cles - 1`, rescaled to **-1..+1** (0 = no difference). Rough magnitude
+  guide: `|0.1|` small, `|0.3|` medium, `|0.5|` large.
 
-Exactly two files, both under `config/`:
+**Why the leave-one-subgroup-out sensitivity analysis exists:** when your subgroup column is
+nested inside your primary grouping (e.g. every genome's `lineage` implies its `lifestyle`), an
+apparent primary-grouping effect can actually be driven entirely by one subgroup, not by the
+grouping variable itself — a phylogenetic confound rather than a real effect of what you think
+you're measuring. `sensitivity_leave_one_out.csv` quantifies each subgroup's individual
+contribution by dropping it and recomputing:
+- **`shrinkage` > 0**: the excluded subgroup was inflating the apparent effect — remove it and the
+  primary grouping separates less. The bigger the shrinkage, the more that subgroup alone was
+  driving the signal.
+- **`shrinkage` < 0**: the opposite — removing that subgroup made the remaining groups separate
+  *more*, meaning it had been diluting the effect (likely because it overlaps the other primary
+  group rather than being distinct from it).
+- **`shrinkage` ≈ 0**: the property's effect doesn't depend much on that particular subgroup.
 
-1. **`config/genomes.tsv`** -- replace the rows with your genome IDs (and whatever `group`/
-   `subgroup` labels make sense for your comparison -- these are free-form, nothing downstream
-   assumes lifestyle/lineage specifically).
-2. **`config/config.yaml`** -- point `input.protein_dir`/`input.cds_dir` at flat
-   `<genome_id>.fasta` files, **or** set `staging.source_dir` (+ `protein_subdir`/`cds_subdir` if
-   your tree's top-level folder names differ) if your files are nested/compressed and you want
-   `stage_inputs` to symlink them for you.
+(In the verified red-algae dataset, this is exactly how the analysis was validated: several
+protein properties showed a real `lifestyle` effect on paper, but dropping the `Galdieria` lineage
+shrank it substantially — while dropping `Cyanidiales` *strengthened* it — showing the apparent
+lifestyle effect was actually a lineage effect.)
 
-That's it -- `workflow/Snakefile` reads `GENOMES` from `genomes.tsv` and drives every rule off
-that list, so no rule file needs touching. If submitting via SLURM, also update
-`config/config.yaml`'s `slurm:` block (account/QOS/partition/mail_user) for your allocation.
+## Dependencies & environments
 
-## Phase 1 / Phase 2a (done) / Phase 2b (next)
-Replacing the `touch`-only rule bodies with real logic ported from the validated exploratory
-notebooks. Done: input staging (symlinks), `qc` (real FASTA quality checks), `parse` (FASTA ->
-`protein_table.csv`/`cds_table.csv`), `protein_properties` (Phase 2a -- lightweight
-physicochemical properties, `workflow/scripts/protein_properties.py`). Remaining: intrinsic
-disorder prediction (Phase 2b -- heavy, its own SLURM-per-genome rule, reads
-`protein_properties.csv` and adds a disorder column), CDS property calculations, cross-genome
-summary statistics (effect sizes, phylogenetic-sensitivity checks), and the summary figures.
-Dashboard internals come later.
+- **Snakemake 9** (developed/tested against 9.23.1) + conda/mamba on the compute environment.
+- Every rule that needs real dependencies declares its own conda env under `workflow/envs/`,
+  activated automatically via `--use-conda`:
+
+  | Env | Used by | Key packages |
+  |---|---|---|
+  | `analysis.yaml` | `qc`, `parse`, `protein_properties`, `visuals` (stub) | biopython, pandas, numpy, scipy, matplotlib, seaborn |
+  | `disorder.yaml` | `disorder` | metapredict (pip; pulls PyTorch) |
+  | `codonw.yaml` | `cds_properties` | codonW 1.4.4 (bioconda) |
+  | `summaries.yaml` | Phase 4 rules | pandas, numpy, scipy |
+
+- **codonW** comes from bioconda (`codonw=1.4.4=h7b50bb2_7`, pinned to a build already validated
+  on this deployment) — it's a standalone C program, not a Python package.
+- **metapredict** comes from PyPI via the env's `pip:` section (not on conda-forge/bioconda) and
+  pulls in PyTorch as a dependency — this is why `disorder.yaml` is CPU-inference-heavy to
+  install and why the `disorder` rule needs real compute (see the SLURM warning above).
+
+**⚠️ Known issue, documented honestly:** `--use-conda` environments have broken *inside SLURM
+jobs* on this deployment more than once — while working fine when tested interactively on a login
+node. Root causes varied (a cold/first-touch environment on a freshly allocated node in one case;
+a genuine `libstdc++` ABI conflict between pip-installed PyTorch and conda-forge-built
+numpy/scipy in another — see `workflow/rules/disorder.smk`'s shell-command comment for the full
+story and fix). **Test any new or modified conda env inside a real SLURM job before trusting it**
+— a login-node pass is not sufficient evidence it'll work under `sbatch`.
+
+## Known limitations
+
+- **`visuals` and `dashboard` are not implemented** — both are still `touch`-only stubs producing
+  an empty marker file, no real figures or dashboard yet.
+- **Only two grouping columns are wired up by default.** `workflow/Snakefile`'s `GROUPING_COLUMNS`
+  is built from exactly `sensitivity.primary_grouping`/`subgroup_column` — those are the only two
+  columns that automatically get merged into the master tables and get their own
+  `effect_sizes_<grouping>.csv`. Adding a third grouping dimension doesn't need any script changes
+  (every script already accepts an arbitrary set of group columns via `--group-columns`/
+  `--genomes-tsv`) — just a new config.yaml key and one line in the Snakefile appending it to
+  `GROUPING_COLUMNS`.
+- **`download_from_jgi.sh` is a documented stub**, not a working downloader (see
+  [Input requirements](#input-requirements)) — it requires a JGI-provided tool
+  (`portal-apps-bootstrap.sh`) this repo doesn't include. Prints a message and exits immediately;
+  read the comments in the script for the real invocation, commented out below the stub.
+- **SLURM account/QOS/partition/email are this deployment's values** and must be changed in
+  `config.yaml` by anyone else running this pipeline.
+- **`staging.source_dir`** (in the shipped `config.yaml`) is an absolute path on this deployment's
+  filesystem — irrelevant/must be changed if you're not using the nested-download-tree staging
+  path at all (the common case: just use a flat `input.protein_dir`/`input.cds_dir` and delete or
+  ignore the `staging:` block).
+- **`parse`'s `.parsed.done` marker is vestigial**, not orphaned — it's still produced (a leftover
+  from the original Phase 0 scaffold), but nothing downstream reads it anymore; `protein_properties`/
+  `cds_properties` read the real parsed tables directly.

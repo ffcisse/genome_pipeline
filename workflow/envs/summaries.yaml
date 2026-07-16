@@ -1,8 +1,9 @@
 # Conda environment for the Phase 4 summaries rules (merge_protein_table,
-# merge_cds_table, species_summary, effect_sizes, sensitivity_drop_galdieria).
-# Separate from envs/analysis.yaml/disorder.yaml/codonw.yaml for the same
-# reason as those: this is plain pandas/numpy/scipy (Mann-Whitney U via
-# scipy.stats), nothing in common with biopython, PyTorch, or codonW.
+# merge_cds_table, species_summary, effect_sizes, sensitivity_drop_subgroup,
+# sensitivity_leave_one_out). Separate from envs/analysis.yaml/disorder.yaml/
+# codonw.yaml for the same reason as those: this is plain pandas/numpy/scipy
+# (Mann-Whitney U via scipy.stats), nothing in common with biopython,
+# PyTorch, or codonW.
 name: summaries
 channels:
   - conda-forge

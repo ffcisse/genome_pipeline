@@ -1,62 +1,69 @@
 # Running on DORI (SLURM)
 
-DORI uses the SLURM scheduler. Snakemake submits jobs to SLURM through the
-`snakemake-executor-plugin-slurm` executor plugin (Snakemake 8+ moved cluster support to
-plugins; this repo uses Snakemake 9).
+DORI uses the SLURM scheduler. This pipeline submits jobs the simple way: one `sbatch` job per
+phase, running `snakemake --cores $SLURM_CPUS_PER_TASK --use-conda` locally inside a single
+allocation -- not Snakemake's separate `snakemake-executor-plugin-slurm` cluster-executor model
+(that was considered early on but never actually adopted; if you find references to it elsewhere,
+they're stale).
 
-This whole file is inherently deployment-specific -- "DORI" is this deployment's cluster, and
-running elsewhere means different scheduler commands/module setup throughout. What *does*
-travel with the repo is `config/config.yaml`'s `slurm:` block: account/QOS/partition/mail_user
-are read from there (not hardcoded in any script), so pointing at a different allocation on the
-same cluster -- or the same allocation on a different one -- is a config edit. See
-[Portability](README.md#portability) in the README for the full config-vs-environment
-breakdown.
+This file is inherently deployment-specific -- "DORI" is this deployment's cluster, and running
+elsewhere means different scheduler commands/module setup. What *does* travel with the repo is
+`config/config.yaml`'s `slurm:` block: account/QOS/partition/mail_user are read from there (not
+hardcoded in any script), so pointing at a different allocation on the same cluster -- or the same
+allocation on a different one -- is a config edit, not a script edit.
 
-## One-time setup (on DORI, inside your snakemake conda env)
+## Submission model
+
+Each phase has a `submit_phaseN.sh` wrapper around a `run_phaseN.sbatch` script:
+
 ```bash
-pip install snakemake-executor-plugin-slurm
+workflow/scripts/submit_phase1.sh   # stage_inputs -> qc -> parse
+workflow/scripts/submit_phase2a.sh  # protein_properties
+workflow/scripts/submit_phase2b.sh  # disorder (heavy -- see below)
+workflow/scripts/submit_phase3.sh   # cds_properties
+workflow/scripts/submit_phase4.sh   # merge_*/species_summary/effect_sizes/sensitivity_*
 ```
 
-## Per-rule resources
-A rule can declare a `resources:` block (e.g. `slurm_partition`, `mem_mb`, `runtime`,
-`cpus_per_task`) that the SLURM executor reads when submitting that rule's jobs. None are set
-in this scaffold yet -- Phase 1 will add real values once we know actual runtime/memory needs
-per stage. Until then, SLURM's own defaults apply.
+Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your site has defaults for
+account/QOS/mail-user: each wrapper reads `config.yaml`'s `slurm:` block and passes it as `sbatch`
+CLI flags. See the main [README](README.md#running-it) for the full per-phase resource table and
+what each phase produces -- this file only covers what's genuinely SLURM/DORI-specific.
 
-## Submit command
-```bash
-snakemake --executor slurm --jobs 20 --use-conda
-```
-- `--executor slurm` -- submit each job as its own SLURM job instead of running locally.
-- `--jobs 20` -- allow up to 20 jobs queued/running at once.
-- `--use-conda` -- activate each rule's declared conda env (workflow/envs/) before it runs.
+Each `run_phaseN.sbatch` script requests one allocation and runs `snakemake --cores
+$SLURM_CPUS_PER_TASK --use-conda` (Phase 2b's `disorder` targets are named explicitly, since that
+output isn't part of `rule all`; every other phase runs Snakemake with no explicit target, so it
+also picks up any earlier stage that isn't done yet). Re-running an earlier phase's script after
+later work is already done is harmless -- Snakemake just confirms everything's up to date.
 
-## Quick option: one sbatch job running Snakemake locally
-For light workloads (e.g. Phase 1's qc/parse stages, or Phase 2a's protein_properties -- 9 small
-proteomes, all single-core/single-pass work) it's not worth the executor-plugin's per-rule job
-submission overhead. Instead, `workflow/scripts/run_phase1.sbatch` (Phase 1) and
-`run_phase2a.sbatch` (Phase 2a) each request one modest allocation and run
-`snakemake --cores $SLURM_CPUS_PER_TASK --use-conda` locally inside it -- with no explicit
-target, so each one also picks up any earlier stage that isn't done yet, not just its own. Submit
-via the wrapper, not `sbatch` directly:
-```bash
-workflow/scripts/submit_phase1.sh
-workflow/scripts/submit_phase2a.sh
-```
-Each wrapper reads `config/config.yaml`'s `slurm:` block (account/QOS/partition/mail_user) and
-passes them as `sbatch` CLI flags -- so pointing this at a different allocation or cluster is a
-config edit, not a script edit. (`sbatch workflow/scripts/run_phase1.sbatch` still works
-directly, just without an account/QOS/mail-user unless your site has defaults for them.)
+**Phase 2b (`disorder`) needs real resources**, unlike the other phases: a full 64-core exclusive
+node (see `run_phase2b.sbatch`'s `#SBATCH` header). It loads a real PyTorch model and runs
+inference over every protein -- do not try to run it inline on a login node or with a small
+allocation.
 
-Logs land in `logs/phase1_<jobid>.{out,err}` / `logs/phase2a_<jobid>.{out,err}`. Switch to the
-`--executor slurm` model above once a stage's per-genome runtime/memory actually warrants
-separate jobs -- e.g. Phase 2b's planned intrinsic disorder prediction rule, which is heavy
-enough (unlike everything in Phase 1/2a) to need its own per-genome SLURM resources rather than
-running inline in one shared allocation. At that point, account/QOS/partition for *that* model
-belong in a workflow profile (`config/slurm_profile/config.yaml`, see below), which is the
-Snakemake-native equivalent of this wrapper for the per-rule submission model.
+Logs land in `logs/phaseN_<jobid>.{out,err}`.
 
-## Optional: a workflow profile
-Instead of retyping flags every time, you can put them in `config/slurm_profile/config.yaml`
-and run `snakemake --profile config/slurm_profile`. Not set up yet in this scaffold --
-worth adding once per-rule resource requirements stabilize in Phase 1+.
+## `--use-conda` inside SLURM jobs: test before you trust it
+
+More than once on this deployment, a conda env that worked fine when tested interactively on a
+login node broke *inside an actual SLURM job* -- different root causes each time (a cold/
+first-touch environment on a freshly allocated node; a `libstdc++` ABI conflict between
+pip-installed PyTorch and conda-forge-built numpy/scipy -- see `workflow/rules/disorder.smk`'s
+shell-command comment for the full story on that one). **Whenever you add or modify a conda env,
+submit a real (even tiny) SLURM job that activates it and runs something simple before trusting
+it in a full run.** A clean login-node test is not sufficient evidence.
+
+## Per-rule `resources:`
+
+Snakemake rules can declare a `resources:` block (`mem_mb`, `runtime`, etc.) -- `disorder` in
+`workflow/rules/disorder.smk` does, documenting what it actually needs even though nothing enforces
+it under the current local-`--cores` submission model (that's what a workflow profile, below,
+would be for). The other rules don't need one; they're light enough that SLURM's/the sbatch
+script's own defaults are enough.
+
+## Not set up: a workflow profile / cluster-executor model
+
+If per-rule SLURM submission (one job per rule instance, submitted and tracked by Snakemake
+itself via `snakemake --executor slurm --jobs N` and a workflow profile) ever becomes worth the
+overhead -- e.g. many genomes where phases should run genuinely in parallel across separate
+nodes rather than one allocation at a time -- that's a real alternative to the model above, but
+it isn't set up in this repo. Don't assume it works without building and testing it first.
