@@ -66,6 +66,11 @@ _visuals_config = config.get("visuals", {})
 VISUALS_EXCLUDE_PROPERTIES = _visuals_config.get("exclude_properties", [])
 VISUALS_TOP_N_EFFECT_SIZES = _visuals_config.get("top_n_effect_sizes", 25)
 
+# ---- Dashboard (Phase 6) config ----
+_dashboard_config = config.get("dashboard", {})
+DASHBOARD_SAMPLE_PER_GENOME = _dashboard_config.get("sample_per_genome", 2500)
+DASHBOARD_SAMPLE_SEED = _dashboard_config.get("sample_seed", 42)
+
 # ---- Resolve staged input paths ----
 # PROTEIN_STAGED / CDS_STAGED map genome_id -> the file qc/parse should read.
 # Default (no staging configured): protein_dir/cds_dir already contain flat

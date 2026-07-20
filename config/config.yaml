@@ -93,6 +93,20 @@ visuals:
   exclude_properties: []
   top_n_effect_sizes: 25
 
+# ---- Dashboard (Phase 6, optional) ----
+# The dashboard's Property Explorer/Species View distribution and scatter
+# plots read a per-genome RANDOM SAMPLE of proteins (not the full ~61k
+# rows) so the standalone HTML stays small enough to email/open offline --
+# every summary statistic shown anywhere in the dashboard (medians, exact
+# box-plot quartiles, effect sizes, sensitivity) is still computed from the
+# FULL dataset first, in build_dashboard_data.py, and never recomputed
+# client-side from the sample. sample_seed makes the sample reproducible
+# across rebuilds (same genomes -> same sampled rows) rather than changing
+# every time the pipeline reruns.
+dashboard:
+  sample_per_genome: 2500
+  sample_seed: 42
+
 # ---- SLURM submission (optional) ----
 # Read by workflow/scripts/submit_phase1.sh, which passes these as `sbatch`
 # CLI flags (account/QOS/partition/notification email are cluster- and
