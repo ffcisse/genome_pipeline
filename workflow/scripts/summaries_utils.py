@@ -77,6 +77,34 @@ def numeric_property_columns(df: pd.DataFrame, label_columns: list[str] = ()) ->
     return cols
 
 
+# Column-name PATTERN that's structurally never an individually-plottable/
+# -displayable "property," regardless of dataset: cds_properties.py's own
+# fixed naming convention for its 64 raw per-codon count columns (a pipeline
+# schema fact, like STRUCTURAL_COLUMNS above -- not a project-specific
+# exclusion). A matrix of 64 near-identical codon columns isn't a
+# meaningful individual-property view (the Phase 5 correlation heatmap/PCA
+# already cover it wholesale), and pooling them into a "top effect size"
+# ranking lets them dominate purely by count. Extendable/overridable via
+# config.yaml's visuals.exclude_properties for anything else.
+DEFAULT_EXCLUDE_PREFIXES = ("codon_",)
+
+
+def property_columns(
+    df: pd.DataFrame,
+    label_columns: list[str] = (),
+    exclude=(),
+    exclude_prefixes=DEFAULT_EXCLUDE_PREFIXES,
+) -> list[str]:
+    """numeric_property_columns()'s selection, further minus any exact
+    names in `exclude` (config.yaml's visuals.exclude_properties) and
+    anything matching exclude_prefixes. Shared by Phase 5's plot_*.py and
+    Phase 6's dashboard data builder -- one property list, used
+    everywhere a human picks/views "a property.\""""
+    cols = numeric_property_columns(df, label_columns=label_columns)
+    exclude_set = set(exclude)
+    return [c for c in cols if c not in exclude_set and not any(c.startswith(p) for p in exclude_prefixes)]
+
+
 def resolve_group_order(observed_values, configured_order=None) -> list:
     """Preferred order for a grouping column's distinct values -- decides
     which value is "A" (vs "B") in cles/rank_biserial, i.e. which direction

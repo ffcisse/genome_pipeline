@@ -19,17 +19,7 @@ matplotlib.use("Agg")  # headless -- no display on a login/compute node
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from summaries_utils import numeric_property_columns, resolve_group_order
-
-# Column-name PATTERN that's structurally never an individually-plottable
-# "property," regardless of dataset: cds_properties.py's own fixed naming
-# convention for its 64 raw per-codon count columns (a pipeline schema
-# fact, like STRUCTURAL_COLUMNS in summaries_utils.py -- not a
-# project-specific exclusion). Plotting 64 near-identical codon boxplots
-# isn't a meaningful individual-property view; the correlation heatmap and
-# PCA already cover that matrix wholesale. Extendable/overridable via
-# config.yaml's visuals.exclude_properties for anything else.
-DEFAULT_EXCLUDE_PREFIXES = ("codon_",)
+from summaries_utils import DEFAULT_EXCLUDE_PREFIXES, property_columns, resolve_group_order  # noqa: F401
 
 # Two different qualitative palette FAMILIES, keyed by grouping ROLE (which
 # config.yaml key the column came from), not by column name or value -- so
@@ -72,23 +62,6 @@ def save_figure(fig, output_dir: str, name: str) -> None:
     for ext in ("png", "pdf"):
         fig.savefig(os.path.join(output_dir, f"{name}.{ext}"))
     plt.close(fig)
-
-
-def property_columns(
-    df: pd.DataFrame,
-    label_columns,
-    exclude=(),
-    exclude_prefixes=DEFAULT_EXCLUDE_PREFIXES,
-) -> list[str]:
-    """Numeric property columns worth an individual plot: Phase 4's own
-    numeric_property_columns() selection (numeric/bool, minus structural +
-    label columns), further minus any exact names in `exclude`
-    (config.yaml's visuals.exclude_properties) and anything matching
-    exclude_prefixes. Column-name-agnostic on purpose, same as Phase 4 --
-    a new property added upstream shows up here automatically."""
-    cols = numeric_property_columns(df, label_columns=label_columns)
-    exclude_set = set(exclude)
-    return [c for c in cols if c not in exclude_set and not any(c.startswith(p) for p in exclude_prefixes)]
 
 
 def group_order_and_colors(df: pd.DataFrame, group_col: str, configured_order, role: str):
