@@ -66,6 +66,7 @@ rule dashboard:
         data=OUTDIR + "/dashboard/data.json",
         plotly_js="workflow/resources/vendor/plotly-cartesian.min.js",
         template="workflow/resources/dashboard/dashboard_template.html",
+        app_js="workflow/resources/dashboard/dashboard_app.js",
     output:
         OUTDIR + "/dashboard/proteome_dashboard.html",
     conda:
@@ -73,4 +74,4 @@ rule dashboard:
     shell:
         "python workflow/scripts/build_dashboard_html.py "
         "--data-json {input.data} --plotly-js {input.plotly_js} --template {input.template} "
-        "--output {output}"
+        "--app-js {input.app_js} --output {output}"
