@@ -122,9 +122,12 @@ else:
 
 rule all:
     # The default target: running plain `snakemake` (no arguments) asks Snakemake to
-    # produce this file, which pulls in the entire dependency chain behind it.
+    # produce this file, which pulls in the entire dependency chain behind it. Phase
+    # 6a made the dashboard real (see dashboard.smk) -- this targets the actual
+    # standalone HTML deliverable directly rather than a touch-only marker, since
+    # nothing downstream depends on the dashboard finishing.
     input:
-        OUTDIR + "/dashboard/dashboard.done",
+        OUTDIR + "/dashboard/proteome_dashboard.html",
 
 if STAGING_SOURCE_DIR:
     include: "rules/staging.smk"
