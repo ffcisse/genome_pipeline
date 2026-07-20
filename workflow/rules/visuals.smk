@@ -219,17 +219,23 @@ rule plot_sensitivity:
 
 rule visuals:
     """
-    Stage 6 -- Generate summary figures from the cross-genome summary tables
-    (Phase 1: the boxplots/KDEs/heatmaps validated in the exploratory notebooks).
-
-    Depends on `summaries` (already an aggregate over all genomes), so this rule
-    stays a simple one-to-one dependency, no expand() needed here.
+    Stage 6 (Phase 5 complete) -- Thin touch-only aggregator, same pattern
+    as Phase 4's `summaries` rule: the touch itself does nothing, but
+    Snakemake won't run it (or let `dashboard` proceed) until every real
+    figure-producing rule above has completed. dashboard.smk depends only
+    on this rule's output path, unchanged since the Phase 0 scaffold --
+    Phase 5 is additive underneath it, not a replacement of the interface
+    downstream rules already depend on.
     """
     input:
-        OUTDIR + "/summaries/summaries.done",
+        boxplots=OUTDIR + "/plots/boxplots",
+        distributions=OUTDIR + "/plots/distributions",
+        cds_distributions=OUTDIR + "/plots/cds_distributions",
+        pca=OUTDIR + "/plots/pca",
+        clustering=OUTDIR + "/plots/clustering",
+        effect_sizes=OUTDIR + "/plots/effect_sizes",
+        sensitivity=OUTDIR + "/plots/sensitivity",
     output:
         OUTDIR + "/visuals/visuals.done",
-    conda:
-        "../envs/analysis.yaml"
     shell:
         "touch {output}"
