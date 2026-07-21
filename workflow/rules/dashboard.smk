@@ -29,6 +29,7 @@ rule dashboard_data:
     """
     input:
         protein=OUTDIR + "/summaries/master_protein_table.csv",
+        cds=OUTDIR + "/summaries/master_cds_table.csv",
         genomes_tsv=config["genome_table"],
         qc_reports=expand(OUTDIR + "/qc/{genome}.qc.done", genome=GENOMES),
         effect_sizes_primary=OUTDIR + "/summaries/effect_sizes_{}.csv".format(SENSITIVITY_PRIMARY_GROUPING),
@@ -49,7 +50,7 @@ rule dashboard_data:
         "../envs/summaries.yaml"
     shell:
         "python workflow/scripts/build_dashboard_data.py "
-        "--master-protein-table {input.protein} --genomes-tsv {input.genomes_tsv} "
+        "--master-protein-table {input.protein} --master-cds-table {input.cds} --genomes-tsv {input.genomes_tsv} "
         "--qc-reports {input.qc_reports} "
         "--effect-sizes-primary {input.effect_sizes_primary} --effect-sizes-subgroup {input.effect_sizes_subgroup} "
         "--sensitivity-leave-one-out {input.sensitivity} "
