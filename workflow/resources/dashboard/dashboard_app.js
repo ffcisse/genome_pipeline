@@ -113,20 +113,6 @@
     return { x: xs, y: ys };
   }
 
-  function pearson(xs, ys) {
-    var n = xs.length;
-    if (n < 2) return null;
-    var mx = xs.reduce(function (a, b) { return a + b; }, 0) / n;
-    var my = ys.reduce(function (a, b) { return a + b; }, 0) / n;
-    var sxy = 0, sxx = 0, syy = 0;
-    for (var i = 0; i < n; i++) {
-      var dx = xs[i] - mx, dy = ys[i] - my;
-      sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
-    }
-    if (sxx === 0 || syy === 0) return null;
-    return sxy / Math.sqrt(sxx * syy);
-  }
-
   // ---- export helpers ----------------------------------------------------
   function downloadBlob(filename, content, mime) {
     var blob = new Blob([content], { type: mime || "text/csv" });
@@ -751,13 +737,11 @@
 
     var byGroup = {};
     groups.forEach(function (g) { byGroup[g] = { x: [], y: [] }; });
-    var allX = [], allY = [];
     for (var i = 0; i < idxArr.length; i++) {
       var xv = xArr[i], yv = yArr[i];
       if (xv === null || yv === null || xv === undefined || yv === undefined) continue;
       var gname = groups[idxArr[i]];
       byGroup[gname].x.push(xv); byGroup[gname].y.push(yv);
-      allX.push(xv); allY.push(yv);
     }
     scatterLastData = { table: table, propX: propX, propY: propY, byGroup: byGroup, groups: groups };
 
