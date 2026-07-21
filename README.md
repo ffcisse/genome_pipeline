@@ -1,29 +1,54 @@
+<a id="readme-top"></a>
+
+<div align="center">
+
 # Genome Comparison Pipeline
 
-A reproducible Snakemake pipeline for comparative genomics. Point it at a set of genomes'
-protein + CDS FASTA files and it computes per-protein and per-gene properties, merges them into
-cross-genome master tables, and runs configurable group-comparison statistics (effect sizes and
-a leave-one-subgroup-out sensitivity analysis).
+**A reproducible Snakemake pipeline for comparative genomics — protein/CDS property computation, cross-genome statistics, static figures, and an interactive dashboard, all driven by two config files.**
 
-**The pipeline is genome-agnostic.** It was built against 9 red algae (Rhodophyta) genomes from
-a lifestyle-comparison study (verified end to end: 61,349 proteins / 61,349 CDS across all 9),
-but nothing in the code assumes red algae, that species count, or those specific property
-values — including the grouping columns used for effect sizes and the sensitivity analysis
-(`lifestyle`/`lineage` here are config values, not hardcoded names). Point `config/config.yaml`
-and `config/genomes.tsv` at a different set of genomes and the same rules apply; see
-[Configuration](#configuration) for exactly what to edit.
+[![Snakemake](https://img.shields.io/badge/snakemake-%E2%89%A59.23.1-039475?style=for-the-badge&logo=snakemake&logoColor=white)](https://snakemake.readthedocs.io/)
+[![Python](https://img.shields.io/badge/python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
-**Verification level differs by phase.** Phases 5 (static figures) and 6a (interactive
-dashboard) have each additionally been run end-to-end against a *synthetic* dataset built
-specifically to break genome-specific assumptions — different grouping column names, different
-group values, and a different number of distinct values per grouping column than the real
-9-genome deployment — and confirmed to render correctly with no hardcoded genome/group/property
-strings leaking through. Phases 1-4 are genome-agnostic by construction (no script hardcodes a
-genome ID, property name, or grouping column name/value — see [Configuration](#configuration))
-but have not had that same synthetic end-to-end run; their verification is the real 9-genome
-dataset plus code inspection.
+</div>
 
-## What it does
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about-the-project">About The Project</a>
+      <ul><li><a href="#built-with">Built With</a></li></ul>
+    </li>
+    <li><a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a>
+      <ul>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#input-requirements">Input Requirements</a></li>
+        <li><a href="#running-it">Running It</a></li>
+        <li><a href="#dependencies--environments">Dependencies &amp; Environments</a></li>
+        <li><a href="#outputs">Outputs</a></li>
+        <li><a href="#visualizations-phase-5">Visualizations (Phase 5)</a></li>
+        <li><a href="#interactive-dashboard-phase-6a">Interactive Dashboard (Phase 6a)</a></li>
+        <li><a href="#interpreting-the-statistics">Interpreting the Statistics</a></li>
+      </ul>
+    </li>
+    <li><a href="#known-limitations">Known Limitations</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgments">Acknowledgments</a></li>
+  </ol>
+</details>
+
+## About The Project
+
+Point this pipeline at a set of genomes' protein + CDS FASTA files and it computes per-protein and
+per-gene properties, merges them into cross-genome master tables, runs configurable
+group-comparison statistics (effect sizes and a leave-one-subgroup-out sensitivity analysis), and
+produces both a full set of static figures and a single-file interactive dashboard for exploring
+the results.
 
 **In:** one protein FASTA + one CDS FASTA per genome, plus a genome metadata table
 (`config/genomes.tsv`) with at least a genome ID and two grouping columns.
@@ -42,100 +67,124 @@ dataset plus code inspection.
   a sensitivity heatmap), as both PNG and PDF
 - A single standalone HTML dashboard for interactively exploring the same properties/groupings
 
-## Status
+**The pipeline is genome-agnostic.** It was built against 9 red algae (Rhodophyta) genomes from a
+lifestyle-comparison study (verified end to end: 61,349 proteins / 61,349 CDS across all 9), but
+nothing in the code assumes red algae, that species count, or those specific property values —
+including the grouping columns used for effect sizes and the sensitivity analysis
+(`lifestyle`/`lineage` here are config values, not hardcoded names). Point `config/config.yaml`
+and `config/genomes.tsv` at a different set of genomes and the same rules apply; see
+[Configuration](#configuration) for exactly what to edit.
 
-| Phase | Rule(s) | Status | What it produces |
-|---|---|---|---|
-| 0 | `stage_inputs` | done (optional) | Symlinks real FASTA into the flat layout the rest of the pipeline expects |
-| 1 | `qc`, `parse` | done | QC report; canonical parsed protein/CDS tables |
-| 2a | `protein_properties` | done | Composition, pI, GRAVY, aliphatic index, instability, charge, aggregation propensity |
-| 2b | `disorder` | done (**heavy**) | Intrinsic disorder via metapredict (a PyTorch model) |
-| 3 | `cds_properties` | done | ENC, GC, GC3s, codon usage, start/stop codons via codonW |
-| 4 | `merge_*`, `species_summary`, `effect_sizes`, `sensitivity_*` | done | Master tables, species summary, effect sizes, sensitivity analysis |
-| 5 | `visuals` (`plot_*`) | done | 457 static figures (PNG+PDF) — boxplots, distributions, PCA, clustering, effect-size forest plots, sensitivity heatmap. See [Visualizations](#visualizations-phase-5). |
-| 6a | `dashboard_data`, `dashboard` | done | Standalone `proteome_dashboard.html` — Overview, Property Explorer, Species View, Effect Sizes, Sensitivity. See [Interactive dashboard](#interactive-dashboard). |
-| 6b | *(not started)* | **planned** | CDS/codon-level dashboard views, PCA/clustering dashboard views, cross-property scatter, export/download |
+**Verification level differs by phase.** Phases 5 (static figures) and 6a (interactive dashboard)
+have each additionally been run end-to-end against a *synthetic* dataset built specifically to
+break genome-specific assumptions — different grouping column names, different group values, and a
+different number of distinct values per grouping column than the real 9-genome deployment — and
+confirmed to render correctly with no hardcoded genome/group/property strings leaking through.
+Phases 1-4 are genome-agnostic by construction (no script hardcodes a genome ID, property name, or
+grouping column name/value) but have not had that same synthetic end-to-end run; their
+verification is the real 9-genome dataset plus code inspection.
 
-## Repo layout
+### Built With
 
-```
-config/
-  config.yaml         All pipeline settings -- see Configuration below
-  genomes.tsv          Genome metadata: IDs + grouping columns
-workflow/
-  Snakefile            Entry point: loads config, defines rule all, includes rule files
-  rules/*.smk          One file per pipeline stage
-  scripts/*.py         Python implementing each rule's logic
-  scripts/run_phase*.sbatch, submit_phase*.sh   Per-phase SLURM submission
-  envs/*.yaml          Per-rule conda environment specs
-  resources/vendor/    Vendored third-party JS (Plotly, inlined into the dashboard -- see below)
-  resources/dashboard/ Dashboard HTML template + app JS, assembled into proteome_dashboard.html
-resources/input/       Input FASTA (gitignored except directory structure)
-results/                Pipeline outputs (gitignored, regenerated by the pipeline)
-  plots/                Phase 5's 457 static figures (see Outputs below)
-  dashboard/            Phase 6a's data.json + proteome_dashboard.html
-logs/                   SLURM job logs (gitignored except directory structure)
-SLURM.md                DORI/SLURM-specific notes (submission model, conda-in-SLURM caveat)
-```
+[![Snakemake](https://img.shields.io/badge/Snakemake-039475?style=for-the-badge&logo=snakemake&logoColor=white)](https://snakemake.readthedocs.io/)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![pandas](https://img.shields.io/badge/pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+[![Biopython](https://img.shields.io/badge/Biopython-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://biopython.org/)
+[![metapredict](https://img.shields.io/badge/metapredict-orange?style=for-the-badge)](https://github.com/idptools/metapredict)
+[![codonW](https://img.shields.io/badge/codonW-1.4.4-lightgrey?style=for-the-badge)](https://anaconda.org/bioconda/codonw)
+[![Plotly.js](https://img.shields.io/badge/Plotly.js-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)](https://plotly.com/javascript/)
+[![SLURM](https://img.shields.io/badge/SLURM-blue?style=for-the-badge)](https://slurm.schedmd.com/)
 
-## Quickstart
+| Tool | Used for |
+|---|---|
+| **Snakemake** | Pipeline orchestration — every rule, wildcard, and DAG dependency in `workflow/` |
+| **Python 3.11** | Every rule's implementation (`workflow/scripts/*.py`) |
+| **pandas / numpy / scipy** | Tabular data, statistics (Mann-Whitney U, effect sizes) |
+| **Biopython** | FASTA parsing (`qc`, `parse`) |
+| **metapredict** | Intrinsic disorder prediction (Phase 2b, PyTorch-based) |
+| **codonW** | ENC, GC, GC3s, codon usage (Phase 3, standalone C program) |
+| **Plotly.js** | The interactive dashboard's plots (Phase 6a, vendored/inlined, not a CDN) |
+| **SLURM** | Optional cluster execution on DORI — see [Running It](#running-it) |
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Getting Started
+
+### Prerequisites
+
+- **conda or mamba**, to create the Snakemake environment and every per-rule environment
+  (`--use-conda` activates them automatically — nothing to install by hand beyond conda itself).
+- Enough local cores for a quick test, or access to a **SLURM cluster** for a real run (SLURM is
+  optional — see [Running It](#running-it) for both paths).
+- Your genomes' protein + CDS FASTA files (or a way to fetch them — see
+  [Input Requirements](#input-requirements)).
+
+### Installation
 
 ```bash
-git clone <this-repo>
+git clone git@github.com:ffcisse/genome_pipeline.git
 cd genome_pipeline
 
 # 1. Conda env with Snakemake itself
 conda create -n snakemake -c conda-forge -c bioconda snakemake
 conda activate snakemake
 
-# 2. Point config at your genomes (see Configuration below)
+# 2. Point config at your genomes
 #    - config/genomes.tsv: one row per genome
 #    - config/config.yaml: input.protein_dir / input.cds_dir, or staging.source_dir
 $EDITOR config/genomes.tsv
 $EDITOR config/config.yaml
-
-# 3. Dry run -- see what would happen, without running anything
-snakemake -n
-
-# 4. Run it
-snakemake --cores 4 --use-conda          # locally (small datasets / a login node's own cores)
-# or, on a SLURM cluster:
-workflow/scripts/submit_phase1.sh        # see "Running it" below for the full phase list
 ```
-
-`rule all`'s default target is now the dashboard itself (`results/dashboard/proteome_dashboard.html`),
-so a plain `snakemake --cores 4 --use-conda` (or the last submit script in the phase list, since
-each one just runs bare `snakemake`) pulls in every phase through Phase 6a, figures and dashboard
-included — see [Interactive dashboard](#interactive-dashboard) for what to do with the result.
 
 No code editing required to point this at a different genome set — just `config/genomes.tsv` and
 `config/config.yaml`, including the grouping columns used for effect sizes/sensitivity analysis
-(see [Configuration](#configuration)). See [Known limitations](#known-limitations) for the
+(see [Configuration](#configuration)). See [Known Limitations](#known-limitations) for the
 remaining rough edges.
 
-## Configuration
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Usage
+
+```bash
+# Dry run -- see what would happen, without running anything
+snakemake -n
+
+# Run it
+snakemake --cores 4 --use-conda          # locally (small datasets / a login node's own cores)
+# or, on a SLURM cluster:
+workflow/scripts/submit_phase1.sh        # see Running It below for the full phase list
+```
+
+`rule all`'s default target is the dashboard itself (`results/dashboard/proteome_dashboard.html`),
+so a plain `snakemake --cores 4 --use-conda` (or the last submit script in the phase list, since
+each one just runs bare `snakemake`) pulls in every phase through Phase 6a, figures and dashboard
+included — see [Interactive Dashboard](#interactive-dashboard-phase-6a) for what to do with the
+result.
+
+### Configuration
 
 This is the section that matters most. Two files drive everything; nothing else needs editing to
 run on a new genome set.
 
-### `config/config.yaml`
+#### `config/config.yaml`
 
 | Key | Required? | Meaning |
 |---|---|---|
 | `input.mode` | yes | Only `existing_dir` is implemented. |
 | `input.protein_dir` | yes | Directory of per-genome protein FASTA, named `<genome_id>.fasta` (or see `staging` below). |
 | `input.cds_dir` | yes | Same, for CDS FASTA. |
-| `staging.source_dir` | no | Set this instead of pre-flattening `protein_dir`/`cds_dir` yourself — see [Input requirements](#input-requirements). Omit the whole `staging:` block if your files are already flat. |
+| `staging.source_dir` | no | Set this instead of pre-flattening `protein_dir`/`cds_dir` yourself — see [Input Requirements](#input-requirements). Omit the whole `staging:` block if your files are already flat. |
 | `staging.protein_subdir` | no (default `proteome_files`) | Subdirectory name under `source_dir` holding protein downloads. |
 | `staging.cds_subdir` | no (default `cds_files`) | Same, for CDS downloads. |
 | `genome_table` | yes | Path to the genome metadata TSV (see below). Default `config/genomes.tsv`. |
 | `output_dir` | yes | Where results land. Default `results`. |
 | `sensitivity.primary_grouping` | yes | Column in `genome_table` to test as the "main" grouping (e.g. `lifestyle`) — must have exactly 2 distinct values. |
 | `sensitivity.subgroup_column` | yes | Column in `genome_table` whose values get dropped one at a time in the sensitivity sweep (e.g. `lineage`). |
-| `group_value_order` | no | Optional: pins which value of a grouping column is "A" (vs "B") in `cles`/`rank_biserial`, and the order pairwise comparisons are generated in for a >2-value column. A dict of `column: [value, value, ...]`; omit a column (or the whole block) for alphabetical order instead. See [Configuration](#configuration) below. |
+| `group_value_order` | no | Optional: pins which value of a grouping column is "A" (vs "B") in `cles`/`rank_biserial`, and the order pairwise comparisons are generated in for a >2-value column. A dict of `column: [value, value, ...]`; omit a column (or the whole block) for alphabetical order instead. |
+| `dashboard.sample_per_genome` / `dashboard.sample_seed` | no (defaults `2500` / `42`) | How many proteins per genome the dashboard's distribution views sample, and the fixed seed for reproducibility. See [Interactive Dashboard](#interactive-dashboard-phase-6a). |
 | `slurm.account` / `slurm.qos` / `slurm.partition` / `slurm.mail_user` | no, but **deployment-specific** | Passed to `sbatch` by the `submit_phase*.sh` wrappers. **You must change these** — they're this deployment's cluster allocation and email, not yours. Leave `partition: ""` if your cluster doesn't need one. |
 
-### `config/genomes.tsv`
+#### `config/genomes.tsv`
 
 Tab-separated, one row per genome:
 
@@ -157,7 +206,7 @@ columns play these roles — rename `lifestyle`/`lineage` to whatever you want (
 names, different values, a 2-value or N-value column either way) and repoint these two config
 keys at them. Nothing in `workflow/scripts/` hardcodes a column name or value: the master tables,
 `species_summary.csv`, `effect_sizes_<grouping>.csv`, and the sensitivity analysis all derive both
-the grouping column names and the comparison order from config/`genomes.tsv`, not from code.
+the grouping column names and the comparison order from `config/genomes.tsv`, not from code.
 
 **Which value is "A"?** For any grouping column, `cles`/`rank_biserial` need a direction — which
 value counts as "A" (vs "B"), and, for a >2-value column, what order pairwise comparisons are
@@ -172,9 +221,11 @@ default — `workflow/Snakefile`'s `GROUPING_COLUMNS` list is built from exactly
 automatically flow into the master tables and get an `effect_sizes_<grouping>.csv`. Every script
 already accepts an arbitrary set of group columns (nothing to edit there); adding a third means
 adding a config key and one line in the Snakefile to fold it into `GROUPING_COLUMNS` — see
-[Known limitations](#known-limitations) for exactly what that would look like.
+[Known Limitations](#known-limitations) for exactly what that would look like.
 
-## Input requirements
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Input Requirements
 
 Each genome needs a protein FASTA and a CDS FASTA. Two ways to point the pipeline at them:
 
@@ -200,9 +251,11 @@ FASTA from JGI Mycocosm/Phycocosm. Be aware:
 - None of this matters if you already have the FASTA files from anywhere else — just point
   `config.yaml` at them.
 
-## Running it
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Dry run
+### Running It
+
+#### Dry run
 
 ```bash
 snakemake -n
@@ -213,7 +266,7 @@ why (missing output, changed input, etc.). Always run this after a config change
 also print each job's actual shell command, or `--dag | dot -Tpng > dag.png` to render the
 dependency graph visually.
 
-### Per-phase SLURM submission
+#### Per-phase SLURM submission
 
 Each phase has a `submit_phaseN.sh` wrapper (reads `config.yaml`'s `slurm:` block and passes it to
 `sbatch`) around a `run_phaseN.sbatch` script:
@@ -244,13 +297,14 @@ builds it too. Its two rules were verified inside a real SLURM job before being 
 Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your site has defaults for
 account/QOS/mail-user — the wrapper is what supplies those from `config.yaml`.
 
-**⚠️ Phase 2b (`disorder`) is heavy.** It loads a real PyTorch model and runs inference over every
-protein. Manual single-threaded testing needed ~2h/genome, which is why this rule requests a full
-64-core exclusive node (the resource sizing behind `run_phase2b.sbatch`'s 1.5h budget); the
-pipeline's actual batched implementation is considerably faster in practice — the verified
-9-genome, 61,349-protein run finished in under 10 minutes on that allocation. Budget for the
-heavier estimate regardless (node contention and dataset size both vary), and don't run this rule
-inline on a shared login node.
+> [!WARNING]
+> **Phase 2b (`disorder`) is heavy.** It loads a real PyTorch model and runs inference over every
+> protein. Manual single-threaded testing needed ~2h/genome, which is why this rule requests a
+> full 64-core exclusive node (the resource sizing behind `run_phase2b.sbatch`'s 1.5h budget); the
+> pipeline's actual batched implementation is considerably faster in practice — the verified
+> 9-genome, 61,349-protein run finished in under 10 minutes on that allocation. Budget for the
+> heavier estimate regardless (node contention and dataset size both vary), and don't run this
+> rule inline on a shared login node.
 
 **Logs** land in `logs/phaseN_<jobid>.{out,err}`.
 
@@ -260,7 +314,39 @@ before submitting anything. See [`SLURM.md`](SLURM.md) for DORI/SLURM-specific n
 in this README (the `--use-conda`-in-SLURM testing discipline, per-rule `resources:`, and why
 there's no cluster-executor-plugin model here).
 
-## Outputs
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Dependencies & Environments
+
+Every rule that needs real dependencies declares its own conda env under `workflow/envs/`,
+activated automatically via `--use-conda`:
+
+| Env | Used by | Key packages |
+|---|---|---|
+| `analysis.yaml` | `qc`, `parse`, `protein_properties` | biopython, pandas, numpy, scipy |
+| `disorder.yaml` | `disorder` | metapredict (pip; pulls PyTorch) |
+| `codonw.yaml` | `cds_properties` | codonW 1.4.4 (bioconda) |
+| `summaries.yaml` | Phase 4 rules, Phase 6a's `dashboard_data`/`dashboard` | pandas, numpy, scipy |
+| `visuals.yaml` | Phase 5's `plot_*` rules | pandas, numpy, scipy, scikit-learn (PCA), matplotlib, seaborn |
+
+- **codonW** comes from bioconda (`codonw=1.4.4=h7b50bb2_7`, pinned to a build already validated
+  on this deployment) — it's a standalone C program, not a Python package.
+- **metapredict** comes from PyPI via the env's `pip:` section (not on conda-forge/bioconda) and
+  pulls in PyTorch as a dependency — this is why `disorder.yaml` is CPU-inference-heavy to
+  install and why the `disorder` rule needs real compute (see the SLURM warning above).
+
+> [!WARNING]
+> **Known issue, documented honestly:** `--use-conda` environments have broken *inside SLURM
+> jobs* on this deployment more than once — while working fine when tested interactively on a
+> login node. Root causes varied (a cold/first-touch environment on a freshly allocated node in
+> one case; a genuine `libstdc++` ABI conflict between pip-installed PyTorch and conda-forge-built
+> numpy/scipy in another — see `workflow/rules/disorder.smk`'s shell-command comment for the full
+> story and fix). **Test any new or modified conda env inside a real SLURM job before trusting
+> it** — a login-node pass is not sufficient evidence it'll work under `sbatch`.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Outputs
 
 ```
 results/
@@ -289,7 +375,8 @@ results/
     └── proteome_dashboard.html  # the standalone interactive dashboard -- see below
 ```
 
-### Key table columns
+<details>
+<summary><strong>Key table columns</strong> (click to expand)</summary>
 
 **`master_protein_table.csv`** (29 cols; one row per protein, 61,349 in the verified dataset) —
 `genome`, `protein_id`, `sequence`, `length`, composition (`pct_charged`, `pct_acidic`,
@@ -317,9 +404,13 @@ pairwise rows per property for a 3-value `lineage`). Sorted by `|rank_biserial|`
 
 **`sensitivity_leave_one_out.csv`** — `excluded_subgroup`, `property`, `table`,
 `rank_biserial_full`, `rank_biserial_excluded`, `shrinkage`. See
-[Interpreting the statistics](#interpreting-the-statistics) for what `shrinkage` means.
+[Interpreting the Statistics](#interpreting-the-statistics) for what `shrinkage` means.
 
-## Visualizations (Phase 5)
+</details>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Visualizations (Phase 5)
 
 `results/plots/` holds 457 static figures (PNG at 300dpi + PDF, every figure in both formats),
 generated by the `plot_*.py` scripts in `workflow/rules/visuals.smk` directly from Phase 4's
@@ -345,7 +436,9 @@ Genome-agnostic by the same discipline as every earlier phase, and — unlike Ph
 confirmed with an actual synthetic-dataset run (different column names, different group values,
 different group count) rather than by code inspection alone.
 
-## Interactive dashboard
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Interactive Dashboard (Phase 6a)
 
 `results/dashboard/proteome_dashboard.html` is **one standalone HTML file** (~5MB for the real
 9-genome dataset) that opens directly in a browser — no server, no install, and it makes **no
@@ -371,20 +464,22 @@ then double-click it (or open it from your browser's File → Open) on your lapt
 - **Effect Sizes** — an interactive forest plot of rank-biserial effect sizes, switchable between
   the primary grouping and any subgroup pairwise comparison, sorted by magnitude. Clicking a bar
   jumps to that property in Property Explorer — unless it's a CDS-level property (no per-protein
-  sample to plot yet, see Phase 6b below), in which case it shows a short message instead of a
-  dead click.
+  sample to plot yet, see [Roadmap](#roadmap)), in which case it shows a short message instead of
+  a dead click.
 - **Sensitivity** — the leave-one-subgroup-out shrinkage heatmap, with a plain-language explanation
-  of positive vs. negative shrinkage (same interpretation as [below](#interpreting-the-statistics)).
+  of positive vs. negative shrinkage (same interpretation as
+  [Interpreting the Statistics](#interpreting-the-statistics)).
 
-**The sampling caveat (read this before trusting a shape you see in the dashboard):** every
-summary number in the dashboard — medians, the *exact* box-plot quartiles, effect sizes,
-sensitivity — is computed from the **full** dataset (all 61,349 proteins in the real deployment),
-never recomputed in the browser. But the violin/histogram/density views, and the Species View
-comparison plot when set to those modes, are drawn from a **downsampled** per-protein sample: up
-to 2,500 proteins per genome, fixed seed (42) for reproducibility, ~22,500 rows total for the real
-dataset. The UI captions every sampled view accordingly ("distributions shown from a sample...").
-If you need an exact distribution shape rather than a representative one, use the box plot view or
-the underlying CSVs directly.
+> [!NOTE]
+> **The sampling caveat** (read this before trusting a shape you see in the dashboard): every
+> summary number in the dashboard — medians, the *exact* box-plot quartiles, effect sizes,
+> sensitivity — is computed from the **full** dataset (all 61,349 proteins in the real
+> deployment), never recomputed in the browser. But the violin/histogram/density views, and the
+> Species View comparison plot when set to those modes, are drawn from a **downsampled**
+> per-protein sample: up to 2,500 proteins per genome, fixed seed (42) for reproducibility,
+> ~22,500 rows total for the real dataset. The UI captions every sampled view accordingly
+> ("distributions shown from a sample..."). If you need an exact distribution shape rather than a
+> representative one, use the box plot view or the underlying CSVs directly.
 
 **Genome-agnostic**, verified the same way as Phase 5: a synthetic dataset with different grouping
 column names, different group values/counts, different genome IDs, and unrelated property names
@@ -393,13 +488,9 @@ was confirmed (via a scripted sweep of every property × grouping × plot-type c
 both Effect Sizes click-through paths) to render correctly with zero hardcoded strings from the
 real deployment leaking through.
 
-**Phase 6b** (not started) will add: CDS/codon-level property views, PCA/clustering views inside
-the dashboard (Phase 5 already has these as static figures), cross-property scatter plots, and
-export/download. The data payload and UI are structured so these can be added without reworking
-what's already there — e.g. CDS-level properties already flow through Effect Sizes/Sensitivity,
-just not Property Explorer yet.
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Interpreting the statistics
+### Interpreting the Statistics
 
 **p-values are not the signal here.** With ~61,000 proteins/CDS, Mann-Whitney p-values collapse
 to ~0 for almost every property regardless of whether the difference is biologically meaningful —
@@ -430,49 +521,23 @@ protein properties showed a real `lifestyle` effect on paper, but dropping the `
 shrank it substantially — while dropping `Cyanidiales` *strengthened* it — showing the apparent
 lifestyle effect was actually a lineage effect.)
 
-## Dependencies & environments
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- **Snakemake 9** (developed/tested against 9.23.1) + conda/mamba on the compute environment.
-- Every rule that needs real dependencies declares its own conda env under `workflow/envs/`,
-  activated automatically via `--use-conda`:
-
-  | Env | Used by | Key packages |
-  |---|---|---|
-  | `analysis.yaml` | `qc`, `parse`, `protein_properties` | biopython, pandas, numpy, scipy |
-  | `disorder.yaml` | `disorder` | metapredict (pip; pulls PyTorch) |
-  | `codonw.yaml` | `cds_properties` | codonW 1.4.4 (bioconda) |
-  | `summaries.yaml` | Phase 4 rules, Phase 6a's `dashboard_data`/`dashboard` | pandas, numpy, scipy |
-  | `visuals.yaml` | Phase 5's `plot_*` rules | pandas, numpy, scipy, scikit-learn (PCA), matplotlib, seaborn |
-
-- **codonW** comes from bioconda (`codonw=1.4.4=h7b50bb2_7`, pinned to a build already validated
-  on this deployment) — it's a standalone C program, not a Python package.
-- **metapredict** comes from PyPI via the env's `pip:` section (not on conda-forge/bioconda) and
-  pulls in PyTorch as a dependency — this is why `disorder.yaml` is CPU-inference-heavy to
-  install and why the `disorder` rule needs real compute (see the SLURM warning above).
-
-**⚠️ Known issue, documented honestly:** `--use-conda` environments have broken *inside SLURM
-jobs* on this deployment more than once — while working fine when tested interactively on a login
-node. Root causes varied (a cold/first-touch environment on a freshly allocated node in one case;
-a genuine `libstdc++` ABI conflict between pip-installed PyTorch and conda-forge-built
-numpy/scipy in another — see `workflow/rules/disorder.smk`'s shell-command comment for the full
-story and fix). **Test any new or modified conda env inside a real SLURM job before trusting it**
-— a login-node pass is not sufficient evidence it'll work under `sbatch`.
-
-## Known limitations
+## Known Limitations
 
 - **Phase 6b is not started.** The dashboard's Property Explorer only covers protein-level
   properties — CDS/codon-level property views, PCA/clustering views inside the dashboard (Phase 5
   already has these as static figures), cross-property scatter plots, and export/download are all
-  planned but not built. See [Interactive dashboard](#interactive-dashboard).
+  planned but not built. See [Roadmap](#roadmap).
 - **Phase 6a has no dedicated `submit_phase6a.sh`/`run_phase6a.sbatch` yet** — it rides along on
-  `rule all` via any other phase's submit script (see [Running it](#running-it)); a dedicated
+  `rule all` via any other phase's submit script (see [Running It](#running-it)); a dedicated
   wrapper could be added later the same way Phases 1-5 each got one.
 - **SignalP6 signal-peptide predictions are produced separately, outside this pipeline** — not a
   Snakemake rule, and this is deliberate, not an oversight. SignalP6 is license-gated (DTU Health
   Tech academic license) and isn't reproducibly installable from a public conda channel, so it
   doesn't fit this pipeline's `--use-conda`-everywhere reproducibility model. (`download_from_jgi.sh`
   can fetch JGI's own precomputed `sigp6_info` predictions as a download *category* — see
-  [Input requirements](#input-requirements) — but that's a different thing from running SignalP6
+  [Input Requirements](#input-requirements) — but that's a different thing from running SignalP6
   yourself, and neither path is wired into any pipeline rule.)
 - **Only two grouping columns are wired up by default.** `workflow/Snakefile`'s `GROUPING_COLUMNS`
   is built from exactly `sensitivity.primary_grouping`/`subgroup_column` — those are the only two
@@ -482,7 +547,7 @@ story and fix). **Test any new or modified conda env inside a real SLURM job bef
   `--genomes-tsv`) — just a new config.yaml key and one line in the Snakefile appending it to
   `GROUPING_COLUMNS`.
 - **`download_from_jgi.sh` is a documented stub**, not a working downloader (see
-  [Input requirements](#input-requirements)) — it requires a JGI-provided tool
+  [Input Requirements](#input-requirements)) — it requires a JGI-provided tool
   (`portal-apps-bootstrap.sh`) this repo doesn't include. Prints a message and exits immediately;
   read the comments in the script for the real invocation, commented out below the stub.
 - **SLURM account/QOS/partition/email are this deployment's values** and must be changed in
@@ -494,3 +559,44 @@ story and fix). **Test any new or modified conda env inside a real SLURM job bef
 - **`parse`'s `.parsed.done` marker is vestigial**, not orphaned — it's still produced (a leftover
   from the original Phase 0 scaffold), but nothing downstream reads it anymore; `protein_properties`/
   `cds_properties` read the real parsed tables directly.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Roadmap
+
+- [x] Phase 0 — Input staging (`stage_inputs`, optional)
+- [x] Phase 1 — QC + parsing (`qc`, `parse`)
+- [x] Phase 2a — Protein properties (composition, pI, GRAVY, aggregation, ...)
+- [x] Phase 2b — Intrinsic disorder (metapredict)
+- [x] Phase 3 — CDS/codon properties (codonW)
+- [x] Phase 4 — Cross-genome summaries, effect sizes, sensitivity analysis
+- [x] Phase 5 — Static visualizations (457 figures)
+- [x] Phase 6a — Interactive dashboard (Overview, Property Explorer, Species View, Effect Sizes,
+      Sensitivity)
+- [ ] Phase 6b — CDS/codon-level dashboard views
+- [ ] Phase 6b — PCA/clustering dashboard views
+- [ ] Phase 6b — Cross-property scatter plots
+- [ ] Phase 6b — Export/download from the dashboard
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Contact
+
+Farah Cisse — ffcisse@berkeley.edu
+
+Project Link: [https://github.com/ffcisse/genome_pipeline](https://github.com/ffcisse/genome_pipeline)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Acknowledgments
+
+- [JGI Mycocosm / Phycocosm](https://mycocosm.jgi.doe.gov/) — source of the example 9-genome red
+  algae dataset and the FASTA download service `download_from_jgi.sh` documents.
+- [metapredict](https://github.com/idptools/metapredict) — intrinsic disorder prediction (Phase 2b).
+- [codonW](https://anaconda.org/bioconda/codonw) — codon usage / ENC / GC content (Phase 3).
+- [Plotly.js](https://plotly.com/javascript/) — the interactive dashboard's plotting library.
+- [Snakemake](https://snakemake.readthedocs.io/) — workflow orchestration.
+- [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — this README's
+  structure.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
