@@ -22,6 +22,8 @@ workflow/scripts/submit_phase2a.sh  # protein_properties
 workflow/scripts/submit_phase2b.sh  # disorder (heavy -- see below)
 workflow/scripts/submit_phase3.sh   # cds_properties
 workflow/scripts/submit_phase4.sh   # merge_*/species_summary/effect_sizes/sensitivity_*
+workflow/scripts/submit_phase5.sh   # plot_* (457 static figures)
+workflow/scripts/submit_phase6.sh   # dashboard_data -> dashboard (proteome_dashboard.html)
 ```
 
 Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your site has defaults for
@@ -34,6 +36,10 @@ $SLURM_CPUS_PER_TASK --use-conda` (Phase 2b's `disorder` targets are named expli
 output isn't part of `rule all`; every other phase runs Snakemake with no explicit target, so it
 also picks up any earlier stage that isn't done yet). Re-running an earlier phase's script after
 later work is already done is harmless -- Snakemake just confirms everything's up to date.
+`rule all`'s target is `results/dashboard/proteome_dashboard.html` (the real, final deliverable
+since Phase 6a), so re-running `submit_phase5.sh` -- or any earlier phase's script -- also builds
+the dashboard once its upstream data exists; `submit_phase6.sh` exists mainly so Phase 6
+(`dashboard_data`/`dashboard`) has the same one-command entry point every other phase has.
 
 **Phase 2b (`disorder`) needs real resources**, unlike the other phases: a full 64-core exclusive
 node (see `run_phase2b.sbatch`'s `#SBATCH` header). It loads a real PyTorch model and runs
