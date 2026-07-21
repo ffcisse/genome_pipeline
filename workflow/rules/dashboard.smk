@@ -72,6 +72,13 @@ rule dashboard:
     this output path (results/dashboard/proteome_dashboard.html) is the
     real, final pipeline deliverable, so `rule all` in the Snakefile
     targets it directly rather than a separate touch-only marker.
+
+    Phase 6b (dashboard_app.js/dashboard_template.html) added CDS property
+    browsing, a codon-usage heatmap, interactive PCA, genome/property
+    clustering, cross-property scatter, and client-side PNG/CSV export on
+    top of Phase 6a's five sections -- all reading from the same
+    dashboard_data JSON payload (also expanded in Phase 6b), still one
+    file, still offline.
     """
     input:
         data=OUTDIR + "/dashboard/data.json",

@@ -45,14 +45,37 @@ h3 { font-size: 15px; color: var(--muted); font-weight: 600; text-transform: upp
 .stat-card { flex: 1 1 140px; text-align: center; }
 .stat-card .num { font-size: 26px; font-weight: 700; color: var(--accent); }
 .stat-card .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+.controls {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 28px;
+  position: relative; z-index: 5;
+}
 .control label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .control select, .control input[type=number] {
   padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 160px;
   background: #fff; color: var(--text);
 }
+.control.checkbox { flex-direction: row; align-items: center; gap: 6px; }
+.control.checkbox label { margin-bottom: 0; }
 .caption { font-size: 12px; color: var(--muted); margin-top: 8px; font-style: italic; }
-.plot { width: 100%; }
+.plot { width: 100%; margin-top: 6px; }
+.toolbar { display: flex; gap: 8px; margin-top: 10px; }
+.toolbar button {
+  font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; color: var(--text); cursor: pointer;
+}
+.toolbar button:hover { background: #f0f2f5; }
+.side-by-side { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.side-by-side > .plot-col { flex: 2 1 480px; min-width: 0; }
+.side-by-side > .panel-col { flex: 1 1 260px; min-width: 220px; }
+.loading-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.loading-row .bar-wrap { flex: 1; margin: 0 8px; background: #eef0f3; border-radius: 3px; height: 10px; position: relative; top: 3px; }
+.loading-row .bar { height: 100%; border-radius: 3px; }
+.export-list { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.export-list button {
+  font-size: 13px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; color: var(--text); cursor: pointer;
+}
+.export-list button:hover { background: #f0f2f5; }
 table.data-table { border-collapse: collapse; width: 100%; font-size: 13px; }
 table.data-table th, table.data-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
 table.data-table th { text-align: right; cursor: pointer; user-select: none; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
@@ -62,13 +85,6 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
 .table-scroll { overflow-x: auto; max-width: 100%; }
 .qc-pass { color: #15803d; font-weight: 600; }
 .qc-fail { color: #b91c1c; font-weight: 600; }
-#toast {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  background: #111827; color: #fff; padding: 10px 18px; border-radius: 6px;
-  font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
-  max-width: 480px; text-align: center; z-index: 1000;
-}
-#toast.show { opacity: 0.96; }
 .note { font-size: 13px; color: var(--muted); line-height: 1.5; }
 .legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
 </style>
@@ -81,6 +97,11 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
     <button class="navbtn" data-section="species">Species View</button>
     <button class="navbtn" data-section="effects">Effect Sizes</button>
     <button class="navbtn" data-section="sensitivity">Sensitivity</button>
+    <button class="navbtn" data-section="codon">Codon Usage</button>
+    <button class="navbtn" data-section="pca">PCA</button>
+    <button class="navbtn" data-section="clustering">Clustering</button>
+    <button class="navbtn" data-section="scatter">Cross-property Scatter</button>
+    <button class="navbtn" data-section="export">Export</button>
   </div>
 
   <div id="main">
@@ -110,6 +131,13 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
       <div class="card">
         <div class="controls">
           <div class="control">
+            <label>Table</label>
+            <select id="expTable">
+              <option value="protein">Protein</option>
+              <option value="cds">CDS</option>
+            </select>
+          </div>
+          <div class="control">
             <label>Property</label>
             <select id="expProperty"></select>
           </div>
@@ -129,6 +157,10 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
         </div>
         <div id="expPlot" class="plot"></div>
         <div class="caption" id="expCaption"></div>
+        <div class="toolbar">
+          <button id="expExportPng">Download plot (PNG)</button>
+          <button id="expExportCsv">Download this view's data (CSV)</button>
+        </div>
       </div>
     </div>
 
@@ -136,26 +168,15 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
       <h2>Species View</h2>
       <div class="card">
         <h3>Per-genome summary (click a column to sort)</h3>
+        <p class="note">
+          Looking for how a property is distributed within one genome? Use
+          <strong>Property Explorer</strong> with Grouping set to "species (genome)" --
+          that view isn't duplicated here to avoid showing the same plot twice.
+        </p>
         <div class="table-scroll"><table class="data-table" id="speciesTable"></table></div>
-      </div>
-      <div class="card">
-        <div class="controls">
-          <div class="control">
-            <label>Property</label>
-            <select id="spProperty"></select>
-          </div>
-          <div class="control">
-            <label>Plot type</label>
-            <select id="spPlotType">
-              <option value="box">Box (exact)</option>
-              <option value="violin">Violin (sample)</option>
-              <option value="histogram">Histogram (sample)</option>
-              <option value="density">Density / KDE (sample)</option>
-            </select>
-          </div>
+        <div class="toolbar">
+          <button id="spExportCsv">Download this table (CSV)</button>
         </div>
-        <div id="spPlot" class="plot"></div>
-        <div class="caption" id="spCaption"></div>
       </div>
     </div>
 
@@ -169,7 +190,11 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
           </div>
         </div>
         <div id="effPlot" class="plot"></div>
-        <div class="caption">Rank-biserial correlation, sorted by magnitude. Click a bar to jump to that property in Property Explorer.</div>
+        <div class="caption">Rank-biserial correlation, sorted by magnitude. Click a bar to jump to that property in Property Explorer (protein-level properties) or the CDS table in Property Explorer (CDS-level properties).</div>
+        <div class="toolbar">
+          <button id="effExportPng">Download plot (PNG)</button>
+          <button id="effExportCsv">Download this comparison (CSV)</button>
+        </div>
       </div>
     </div>
 
@@ -182,16 +207,168 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
           <strong>Positive shrinkage</strong> means the effect got weaker without that
           subgroup -- that subgroup was driving it. <strong>Negative shrinkage</strong>
           means the effect got stronger without it -- that subgroup had been diluting it.
+          Excluded-subgroup columns that would leave one side of the primary grouping with
+          zero genomes (shrinkage undefined for every property) are omitted rather than shown
+          as a blank stripe.
         </p>
       </div>
       <div class="card">
         <div id="sensPlot" class="plot"></div>
+        <div class="toolbar">
+          <button id="sensExportPng">Download plot (PNG)</button>
+          <button id="sensExportCsv">Download sensitivity data (CSV)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="section-codon">
+      <h2>Codon Usage</h2>
+      <div class="card">
+        <p class="note">
+          Relative codon-usage frequency (% of all codons in that genome), one row per genome
+          (ordered the same way as Species View), one column per codon (alphabetical). This is
+          plain codon frequency, not RSCU.
+        </p>
+        <div id="codonPlot" class="plot"></div>
+        <div class="toolbar">
+          <button id="codonExportPng">Download plot (PNG)</button>
+          <button id="codonExportCsv">Download codon usage (CSV)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="section-pca">
+      <h2>PCA</h2>
+      <div class="card">
+        <div class="controls">
+          <div class="control">
+            <label>Resolution</label>
+            <select id="pcaResolution">
+              <option value="species">Per-species (genome medians)</option>
+              <option value="protein">Per-protein (sample)</option>
+              <option value="cds">Per-CDS (sample)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Properties</label>
+            <select id="pcaPropertySet">
+              <option value="protein">Protein</option>
+              <option value="cds">CDS</option>
+              <option value="combined">Combined (species only)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Color by</label>
+            <select id="pcaGrouping"></select>
+          </div>
+          <div class="control">
+            <label>X axis</label>
+            <select id="pcaX"></select>
+          </div>
+          <div class="control">
+            <label>Y axis</label>
+            <select id="pcaY"></select>
+          </div>
+        </div>
+        <div class="side-by-side">
+          <div class="plot-col"><div id="pcaPlot" class="plot"></div></div>
+          <div class="panel-col">
+            <h3>Top loadings</h3>
+            <div id="pcaLoadings"></div>
+          </div>
+        </div>
+        <div class="caption" id="pcaCaption"></div>
+        <div class="toolbar">
+          <button id="pcaExportPng">Download plot (PNG)</button>
+          <button id="pcaExportCsv">Download scores (CSV)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="section-clustering">
+      <h2>Clustering</h2>
+      <div class="card">
+        <h3>Genome &times; property (z-scored medians, combined protein + CDS)</h3>
+        <div id="clusterGenomePlot" class="plot"></div>
+        <div class="toolbar">
+          <button id="clusterGenomeExportPng">Download plot (PNG)</button>
+          <button id="clusterGenomeExportCsv">Download matrix (CSV)</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Property &times; property correlation (Spearman)</h3>
+        <div class="controls">
+          <div class="control">
+            <label>Table</label>
+            <select id="corrTable">
+              <option value="protein">Protein</option>
+              <option value="cds">CDS</option>
+            </select>
+          </div>
+        </div>
+        <div id="corrPlot" class="plot"></div>
+        <div class="toolbar">
+          <button id="corrExportPng">Download plot (PNG)</button>
+          <button id="corrExportCsv">Download matrix (CSV)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="section-scatter">
+      <h2>Cross-property Scatter</h2>
+      <div class="card">
+        <div class="controls">
+          <div class="control">
+            <label>Table</label>
+            <select id="scatterTable">
+              <option value="protein">Protein</option>
+              <option value="cds">CDS</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>X property</label>
+            <select id="scatterX"></select>
+          </div>
+          <div class="control">
+            <label>Y property</label>
+            <select id="scatterY"></select>
+          </div>
+          <div class="control">
+            <label>Color by</label>
+            <select id="scatterGrouping"></select>
+          </div>
+          <div class="control checkbox">
+            <input type="checkbox" id="scatterMarginals" />
+            <label for="scatterMarginals">Show marginal distributions</label>
+          </div>
+        </div>
+        <div id="scatterPlot" class="plot"></div>
+        <div class="caption" id="scatterCaption"></div>
+        <div class="toolbar">
+          <button id="scatterExportPng">Download plot (PNG)</button>
+          <button id="scatterExportCsv">Download this view's data (CSV)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="section-export">
+      <h2>Export</h2>
+      <div class="card">
+        <p class="note">
+          Every plot in this dashboard has its own "Download plot (PNG)" / "Download this
+          view's data (CSV)" buttons where it appears. These three buttons export full summary
+          tables that span every property/genome at once, generated entirely in your browser --
+          nothing is uploaded anywhere.
+        </p>
+        <div class="export-list">
+          <button id="exportSpeciesSummary">Download species summary (CSV)</button>
+          <button id="exportEffectSizes">Download effect sizes, all comparisons (CSV)</button>
+          <button id="exportSensitivity">Download sensitivity analysis (CSV)</button>
+        </div>
       </div>
     </div>
   </div>
 </div>
-
-<div id="toast"></div>
 
 <script>
 __PLOTLY_JS__
