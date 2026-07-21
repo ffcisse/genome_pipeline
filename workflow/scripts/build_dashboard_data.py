@@ -59,7 +59,6 @@ import sys
 import numpy as np
 import pandas as pd
 from scipy.cluster.hierarchy import dendrogram, linkage
-from scipy.stats import spearmanr
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from summaries_utils import DEFAULT_EXCLUDE_PREFIXES, load_genome_labels, property_columns, resolve_group_order
