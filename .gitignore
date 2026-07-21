@@ -27,3 +27,5 @@ dag.svg
 
 # OS
 .DS_Store
+resources/*.ipynb
+slurm-*.out
