@@ -12,6 +12,15 @@ rule dashboard_data:
     recomputed here, same discipline as plot_effect_sizes.py/
     plot_sensitivity.py).
 
+    input.visuals (Phase 5's visuals.done) is a DAG-ordering dependency only
+    -- build_dashboard_data.py never reads it, it's not passed on the
+    command line. Without it, nothing downstream of `dashboard` requests
+    Phase 5's figures at all (`rule all` targets the dashboard HTML
+    directly, not visuals.done), so a plain `snakemake` run would silently
+    stop building results/plots/ the moment the dashboard became the real
+    final target. This restores the original stub's intent (its docstring:
+    "wired after summaries/visuals") now that dashboard is real.
+
     params mirrors plot_boxplots.py's: primary/subgroup grouping column
     NAMES and their configured VALUE order come from config.yaml (via the
     Snakefile's SENSITIVITY_*/GROUP_VALUE_ORDER), nothing hardcoded here.
@@ -25,6 +34,7 @@ rule dashboard_data:
         effect_sizes_primary=OUTDIR + "/summaries/effect_sizes_{}.csv".format(SENSITIVITY_PRIMARY_GROUPING),
         effect_sizes_subgroup=OUTDIR + "/summaries/effect_sizes_{}.csv".format(SENSITIVITY_SUBGROUP_COLUMN),
         sensitivity=OUTDIR + "/summaries/sensitivity_leave_one_out.csv",
+        visuals=OUTDIR + "/visuals/visuals.done",
     output:
         OUTDIR + "/dashboard/data.json",
     params:
