@@ -67,9 +67,13 @@ h3 { font-size: 15px; color: var(--muted); font-weight: 600; text-transform: upp
 .side-by-side { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
 .side-by-side > .plot-col { flex: 2 1 480px; min-width: 0; }
 .side-by-side > .panel-col { flex: 1 1 260px; min-width: 220px; }
-.loading-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; border-bottom: 1px solid var(--border); }
-.loading-row .bar-wrap { flex: 1; margin: 0 8px; background: #eef0f3; border-radius: 3px; height: 10px; position: relative; top: 3px; }
-.loading-row .bar { height: 100%; border-radius: 3px; }
+.loading-header, .loading-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.loading-header { font-weight: 600; color: var(--muted); }
+.loading-prop { flex: 1 1 38%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loading-col { flex: 1 1 31%; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.loading-value { flex: 0 0 46px; width: 46px; text-align: right; font-variant-numeric: tabular-nums; font-size: 11px; }
+.loading-col .bar-wrap { flex: 1; min-width: 16px; background: #eef0f3; border-radius: 3px; height: 10px; }
+.loading-col .bar { display: block; height: 100%; border-radius: 3px; }
 .export-list { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .export-list button {
   font-size: 13px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px;
@@ -150,8 +154,10 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
             <select id="expPlotType">
               <option value="box">Box (exact)</option>
               <option value="violin">Violin (sample)</option>
-              <option value="histogram">Histogram (sample)</option>
-              <option value="density">Density / KDE (sample)</option>
+              <option value="histogram">Histogram (sample, overlaid)</option>
+              <option value="density">Density / KDE (sample, overlaid)</option>
+              <option value="histogram_facet">Histogram (faceted, one panel per group)</option>
+              <option value="density_facet">Density / KDE (faceted, one panel per group)</option>
             </select>
           </div>
         </div>
@@ -168,11 +174,6 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
       <h2>Species View</h2>
       <div class="card">
         <h3>Per-genome summary (click a column to sort)</h3>
-        <p class="note">
-          Looking for how a property is distributed within one genome? Use
-          <strong>Property Explorer</strong> with Grouping set to "species (genome)" --
-          that view isn't duplicated here to avoid showing the same plot twice.
-        </p>
         <div class="table-scroll"><table class="data-table" id="speciesTable"></table></div>
         <div class="toolbar">
           <button id="spExportCsv">Download this table (CSV)</button>

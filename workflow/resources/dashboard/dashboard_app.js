@@ -86,7 +86,13 @@
   }
 
   // ---- Gaussian KDE (Plotly has no native KDE trace) -------------------
-  function gaussianKDE(values, gridSize) {
+  // xMin/xMax are optional -- when given (the faceted view passes a range
+  // shared across every group's panel so shapes are directly comparable),
+  // they're used as-is with no extra padding; when omitted (the original
+  // overlaid density view), the range is self-computed from `values` with
+  // 15% padding, exactly as before -- this keeps the existing call sites
+  // byte-for-byte unchanged in behavior.
+  function gaussianKDE(values, gridSize, xMin, xMax) {
     gridSize = gridSize || 200;
     var n = values.length;
     if (n === 0) return { x: [], y: [] };
@@ -94,9 +100,14 @@
     var variance = n > 1 ? values.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / (n - 1) : 1;
     var sd = Math.sqrt(variance) || 1;
     var bw = 1.06 * sd * Math.pow(n, -1 / 5) || 1;
-    var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
-    var pad = (max - min) * 0.15 || 1;
-    var x0 = min - pad, x1 = max + pad;
+    var x0, x1;
+    if (xMin !== undefined && xMax !== undefined) {
+      x0 = xMin; x1 = xMax;
+    } else {
+      var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+      var pad = (max - min) * 0.15 || 1;
+      x0 = min - pad; x1 = max + pad;
+    }
     var xs = new Array(gridSize);
     var ys = new Array(gridSize);
     var norm = 1 / (n * bw * Math.sqrt(2 * Math.PI));
@@ -111,6 +122,136 @@
       ys[i] = s * norm;
     }
     return { x: xs, y: ys };
+  }
+
+  // ---- shared bin histogram (for the faceted view -- same bin edges per
+  // group so bar heights are directly comparable, unlike Plotly's own
+  // per-trace auto-binning which isn't guaranteed to line up across
+  // independent histogram traces) -----------------------------------------
+  function computeHistogramBins(values, xMin, xMax, nBins) {
+    var binWidth = (xMax - xMin) / nBins || 1;
+    var counts = new Array(nBins).fill(0);
+    values.forEach(function (v) {
+      var idx = Math.floor((v - xMin) / binWidth);
+      if (idx < 0) idx = 0;
+      if (idx > nBins - 1) idx = nBins - 1;
+      counts[idx]++;
+    });
+    var n = values.length;
+    var density = counts.map(function (c) { return n && binWidth ? c / (n * binWidth) : 0; });
+    var centers = counts.map(function (_, i) { return xMin + (i + 0.5) * binWidth; });
+    return { centers: centers, density: density, binWidth: binWidth };
+  }
+
+  // ---- adaptive small-multiples grid -- cols/rows derived from however
+  // many groups exist (not hardcoded to any particular count) --------------
+  function computeGridDomains(n) {
+    var cols = Math.max(1, Math.ceil(Math.sqrt(n)));
+    var rows = Math.max(1, Math.ceil(n / cols));
+    var gap = 0.06;
+    var cellW = (1 - gap * (cols - 1)) / cols;
+    var cellH = (1 - gap * (rows - 1)) / rows;
+    var domains = [];
+    for (var i = 0; i < n; i++) {
+      var col = i % cols, row = Math.floor(i / cols);
+      var x0 = col * (cellW + gap), x1 = x0 + cellW;
+      var yTop = 1 - row * (cellH + gap), y1 = yTop, y0 = yTop - cellH;
+      domains.push({ x: [x0, x1], y: [y0, y1], row: row, col: col });
+    }
+    return { domains: domains, rows: rows, cols: cols };
+  }
+
+  // ---- faceted (small-multiples) histogram/KDE: one subplot per group,
+  // shared x range (and, for histograms, identical bin edges) and shared y
+  // range across all panels so shapes are directly comparable -- the
+  // overlaid histogram/density views stay as they were; this is a second,
+  // additive plot type for when overlaying many groups (e.g. 9 genomes)
+  // gets too cluttered to read. -------------------------------------------
+  function renderFaceted(containerId, captionId, table, prop, mode, kind) {
+    var groups = groupsForMode(mode);
+    var n = groups.length;
+    var grid = computeGridDomains(n);
+
+    var allVals = [];
+    var perGroupVals = groups.map(function (g) {
+      var vals = sampledValuesForGroup(table, prop, mode, g);
+      allVals = allVals.concat(vals);
+      return vals;
+    });
+    var xr;
+    if (allVals.length) {
+      var lo = Math.min.apply(null, allVals), hi = Math.max.apply(null, allVals);
+      var pad = (hi - lo) * 0.05 || 1;
+      xr = { min: lo - pad, max: hi + pad };
+    } else {
+      xr = { min: 0, max: 1 };
+    }
+
+    var traces = [];
+    var annotations = [];
+    var maxY = 0;
+    var curves = groups.map(function (g, i) {
+      var vals = perGroupVals[i];
+      var curve = kind === "histogram"
+        ? computeHistogramBins(vals, xr.min, xr.max, 20)
+        : gaussianKDE(vals, 200, xr.min, xr.max);
+      var ys = kind === "histogram" ? curve.density : curve.y;
+      if (ys.length) maxY = Math.max(maxY, Math.max.apply(null, ys));
+      return curve;
+    });
+    var yMax = maxY > 0 ? maxY * 1.08 : 1;
+
+    var lastRowForCol = {};
+    grid.domains.forEach(function (d) { lastRowForCol[d.col] = Math.max(lastRowForCol[d.col] === undefined ? -1 : lastRowForCol[d.col], d.row); });
+
+    var layout = {
+      title: { text: prop + " (" + table + ") by " + mode + " -- one panel per group" },
+      margin: { t: 50, b: 30, l: 40, r: 20 },
+      showlegend: false,
+      height: Math.max(380, grid.rows * 190),
+    };
+
+    groups.forEach(function (g, i) {
+      var suffix = i === 0 ? "" : String(i + 1);
+      var color = colorForMode(mode, g);
+      var d = grid.domains[i];
+      if (kind === "histogram") {
+        traces.push({
+          type: "bar", x: curves[i].centers, y: curves[i].density, width: curves[i].binWidth * 0.9,
+          marker: { color: color }, xaxis: "x" + suffix, yaxis: "y" + suffix, showlegend: false, name: String(g),
+          hovertemplate: String(g) + "<br>" + prop + "=%{x:.4g}<br>density=%{y:.4g}<extra></extra>",
+        });
+      } else {
+        traces.push({
+          type: "scatter", mode: "lines", x: curves[i].x, y: curves[i].y,
+          line: { color: color, width: 2 }, fill: "tozeroy", fillcolor: hexToRgba(color, 0.15),
+          xaxis: "x" + suffix, yaxis: "y" + suffix, showlegend: false, name: String(g),
+          hovertemplate: String(g) + "<br>" + prop + "=%{x:.4g}<br>density=%{y:.4g}<extra></extra>",
+        });
+      }
+      layout["xaxis" + suffix] = {
+        domain: d.x, range: [xr.min, xr.max],
+        showticklabels: d.row === lastRowForCol[d.col], tickfont: { size: 9 },
+      };
+      layout["yaxis" + suffix] = {
+        domain: d.y, range: [0, yMax],
+        showticklabels: d.col === 0, tickfont: { size: 9 },
+      };
+      annotations.push({
+        text: String(g), x: (d.x[0] + d.x[1]) / 2, y: d.y[1], xref: "paper", yref: "paper",
+        showarrow: false, yanchor: "bottom", font: { size: 10, color: "#1f2937" },
+      });
+    });
+    layout.annotations = annotations;
+
+    Plotly.react(containerId, traces, layout, { responsive: true, displaylogo: false });
+
+    if (captionId) {
+      document.getElementById(captionId).textContent =
+        "Distribution shown from a " + DATA.meta.sample_per_genome.toLocaleString() + "-record sample per genome (seed=" +
+        DATA.meta.sample_seed + "); every panel shares the same x-axis range" + (kind === "histogram" ? " and bin edges" : "") +
+        " and the same y-axis range so shapes are directly comparable. Summary statistics elsewhere in this dashboard are computed on the full dataset.";
+    }
   }
 
   // ---- export helpers ----------------------------------------------------
@@ -156,6 +297,11 @@
 
   // ---- shared render for box / violin / histogram / density ----------
   function renderDistribution(containerId, captionId, table, prop, mode, plotType) {
+    if (plotType === "histogram_facet" || plotType === "density_facet") {
+      renderFaceted(containerId, captionId, table, prop, mode, plotType === "histogram_facet" ? "histogram" : "density");
+      return;
+    }
+
     var groups = groupsForMode(mode);
     var traces = [];
 
@@ -535,17 +681,36 @@
 
   function renderLoadings(block, pcX, pcY) {
     var div = document.getElementById("pcaLoadings");
+    var varX = (block.explained_variance_ratio[pcX] * 100).toFixed(1);
+    var varY = (block.explained_variance_ratio[pcY] * 100).toFixed(1);
     var entries = block.properties.map(function (p) { return { prop: p, x: block.loadings[p][pcX], y: block.loadings[p][pcY] }; });
     entries.sort(function (a, b) { return (Math.abs(b.x) + Math.abs(b.y)) - (Math.abs(a.x) + Math.abs(a.y)); });
-    entries = entries.slice(0, 12);
-    var maxAbs = Math.max.apply(null, entries.map(function (e) { return Math.max(Math.abs(e.x), Math.abs(e.y)); }).concat([1e-9]));
-    div.innerHTML = entries.map(function (e) {
-      var wx = Math.abs(e.x) / maxAbs * 50, wy = Math.abs(e.y) / maxAbs * 50;
-      return '<div class="loading-row"><span>' + e.prop + "</span>" +
-        '<span class="bar-wrap"><span class="bar" style="width:' + wx.toFixed(1) + '%;background:#1f77b4;"></span></span>' +
-        '<span class="bar-wrap"><span class="bar" style="width:' + wy.toFixed(1) + '%;background:#ff7f0e;"></span></span>' +
+    var shown = entries.slice(0, 12);
+    var maxAbs = Math.max.apply(null, shown.map(function (e) { return Math.max(Math.abs(e.x), Math.abs(e.y)); }).concat([1e-9]));
+
+    var header = '<div class="loading-header">' +
+      '<span class="loading-prop">property</span>' +
+      '<span class="loading-col" style="color:#1f77b4">PC' + (pcX + 1) + ' (' + varX + '% var)</span>' +
+      '<span class="loading-col" style="color:#ff7f0e">PC' + (pcY + 1) + ' (' + varY + '% var)</span>' +
+      "</div>";
+
+    var rows = shown.map(function (e) {
+      var wx = Math.abs(e.x) / maxAbs * 100, wy = Math.abs(e.y) / maxAbs * 100;
+      return '<div class="loading-row">' +
+        '<span class="loading-prop" title="' + e.prop + '">' + e.prop + "</span>" +
+        '<span class="loading-col">' +
+          '<span class="loading-value">' + e.x.toFixed(3) + "</span>" +
+          '<span class="bar-wrap"><span class="bar" style="width:' + wx.toFixed(1) + '%;background:#1f77b4;"></span></span>' +
+        "</span>" +
+        '<span class="loading-col">' +
+          '<span class="loading-value">' + e.y.toFixed(3) + "</span>" +
+          '<span class="bar-wrap"><span class="bar" style="width:' + wy.toFixed(1) + '%;background:#ff7f0e;"></span></span>' +
+        "</span>" +
         "</div>";
-    }).join("") + '<p class="caption">Bar length = |loading| on the selected axis (blue = X, orange = Y), top 12 by combined magnitude.</p>';
+    }).join("");
+
+    div.innerHTML = header + rows + '<p class="caption">Top ' + shown.length + " of " + entries.length +
+      " properties by combined |loading| on the two selected axes, sorted descending.</p>";
   }
 
   function renderPCA() {
