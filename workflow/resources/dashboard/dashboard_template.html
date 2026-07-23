@@ -35,6 +35,8 @@ html, body {
 #main { flex: 1 1 auto; padding: 28px 32px; overflow-x: hidden; max-width: 100%; }
 .section { display: none; }
 .section.active { display: block; }
+.subview { display: none; }
+.subview.active { display: block; }
 h2 { margin-top: 0; font-size: 20px; }
 h3 { font-size: 15px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
 .card {
@@ -289,28 +291,45 @@ table.data-table th.sorted.asc::after { content: " \25B2"; }
     <div class="section" id="section-clustering">
       <h2>Clustering</h2>
       <div class="card">
-        <h3>Genome &times; property (z-scored medians, combined protein + CDS)</h3>
-        <div id="clusterGenomePlot" class="plot"></div>
-        <div class="toolbar">
-          <button id="clusterGenomeExportPng">Download plot (PNG)</button>
-          <button id="clusterGenomeExportCsv">Download matrix (CSV)</button>
-        </div>
-      </div>
-      <div class="card">
-        <h3>Property &times; property correlation (Spearman)</h3>
         <div class="controls">
           <div class="control">
-            <label>Table</label>
-            <select id="corrTable">
-              <option value="protein">Protein</option>
-              <option value="cds">CDS</option>
+            <label>View</label>
+            <select id="clusterView">
+              <option value="genome">Genome clustering (genomes x properties)</option>
+              <option value="correlation">Property correlation (Spearman)</option>
             </select>
           </div>
         </div>
-        <div id="corrPlot" class="plot"></div>
-        <div class="toolbar">
-          <button id="corrExportPng">Download plot (PNG)</button>
-          <button id="corrExportCsv">Download matrix (CSV)</button>
+      </div>
+
+      <div class="subview active" id="clusterview-genome">
+        <div class="card">
+          <h3>Genome &times; property (z-scored medians, combined protein + CDS)</h3>
+          <div id="clusterGenomePlot" class="plot"></div>
+          <div class="toolbar">
+            <button id="clusterGenomeExportPng">Download plot (PNG)</button>
+            <button id="clusterGenomeExportCsv">Download matrix (CSV)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="subview" id="clusterview-correlation">
+        <div class="card">
+          <h3>Property &times; property correlation (Spearman)</h3>
+          <div class="controls">
+            <div class="control">
+              <label>Table</label>
+              <select id="corrTable">
+                <option value="protein">Protein</option>
+                <option value="cds">CDS</option>
+              </select>
+            </div>
+          </div>
+          <div id="corrPlot" class="plot"></div>
+          <div class="toolbar">
+            <button id="corrExportPng">Download plot (PNG)</button>
+            <button id="corrExportCsv">Download matrix (CSV)</button>
+          </div>
         </div>
       </div>
     </div>

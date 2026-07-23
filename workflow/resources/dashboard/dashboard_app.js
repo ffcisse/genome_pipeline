@@ -870,6 +870,30 @@
     return { columns: cols, rows: rows };
   });
 
+  // ---- Clustering: view switcher (genome clustering vs. property
+  // correlation -- two different analyses, shown one at a time rather
+  // than stacked) --------------------------------------------------------
+  var clusterView = document.getElementById("clusterView");
+  var clusterViewGenomeEl = document.getElementById("clusterview-genome");
+  var clusterViewCorrelationEl = document.getElementById("clusterview-correlation");
+
+  function renderClusterActive() {
+    if (clusterView.value === "correlation") {
+      renderCorrelation();
+    } else {
+      renderClusterGenome();
+    }
+  }
+
+  function switchClusterView() {
+    var name = clusterView.value;
+    clusterViewGenomeEl.classList.toggle("active", name === "genome");
+    clusterViewCorrelationEl.classList.toggle("active", name === "correlation");
+    renderClusterActive();
+    window.dispatchEvent(new Event("resize"));
+  }
+  clusterView.addEventListener("change", switchClusterView);
+
   // ---- Cross-property Scatter -----------------------------------------------
   var scatterTable = document.getElementById("scatterTable");
   var scatterX = document.getElementById("scatterX");
@@ -1051,7 +1075,7 @@
     sensitivity: renderSensitivity,
     codon: renderCodonUsage,
     pca: renderPCA,
-    clustering: function () { renderClusterGenome(); renderCorrelation(); },
+    clustering: renderClusterActive,
     scatter: renderScatter,
     export: function () {},
   };
