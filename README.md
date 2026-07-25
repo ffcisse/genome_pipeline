@@ -122,8 +122,7 @@ $EDITOR config/config.yaml
 
 No code editing required to point this at a different genome set — just `config/genomes.tsv` and
 `config/config.yaml`, including the grouping columns used for effect sizes/sensitivity analysis
-(see [Configuration](#configuration)). See [Known Limitations](#known-limitations) for the
-remaining rough edges.
+(see [Configuration](#configuration)). See [Known Limitations](#known-limitations).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
