@@ -146,8 +146,7 @@ result.
 
 ### Configuration
 
-This is the section that matters most. Two files drive everything; nothing else needs editing to
-run on a new genome set.
+Edit these two files to run on a new genome set.
 
 #### `config/config.yaml`
 
