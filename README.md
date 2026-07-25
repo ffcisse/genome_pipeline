@@ -280,7 +280,7 @@ Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your sit
 account/QOS/mail-user — the wrapper is what supplies those from `config.yaml`.
 
 > [!WARNING]
-> **Phase 2b (`disorder`) is heavy.** It loads a real PyTorch model and runs inference over every
+> **Phase 2b (`disorder`) is heavy.** It loads a PyTorch model and runs inference over every
 > protein. Manual single-threaded testing needed ~2h/genome, which is why this rule requests a
 > full 64-core exclusive node (the resource sizing behind `run_phase2b.sbatch`'s 1.5h budget); the
 > pipeline's actual batched implementation is considerably faster in practice — the verified
