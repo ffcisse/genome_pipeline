@@ -140,7 +140,7 @@ workflow/scripts/submit_phase1.sh        # see Running It below for the full pha
 
 `rule all`'s default target is the dashboard itself (`results/dashboard/proteome_dashboard.html`),
 so a plain `snakemake --cores 4 --use-conda` (or the last submit script in the phase list, since
-each one just runs bare `snakemake`) pulls in every phase through Phase 6a, figures and dashboard
+each one just runs bare `snakemake`) pulls in every phase through Phase 6B, figures and dashboard
 included — see [Interactive Dashboard](#interactive-dashboard-phase-6a) for what to do with the
 result.
 
