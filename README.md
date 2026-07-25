@@ -315,10 +315,10 @@ activated automatically via `--use-conda`:
   on this deployment) — it's a standalone C program, not a Python package.
 - **metapredict** comes from PyPI via the env's `pip:` section (not on conda-forge/bioconda) and
   pulls in PyTorch as a dependency — this is why `disorder.yaml` is CPU-inference-heavy to
-  install and why the `disorder` rule needs real compute (see the SLURM warning above).
+  install(see the SLURM warning above).
 
 > [!WARNING]
-> **Known issue, documented honestly:** `--use-conda` environments have broken *inside SLURM
+> **Known issue:** `--use-conda` environments have broken *inside SLURM
 > jobs* on this deployment more than once — while working fine when tested interactively on a
 > login node. Root causes varied (a cold/first-touch environment on a freshly allocated node in
 > one case; a genuine `libstdc++` ABI conflict between pip-installed PyTorch and conda-forge-built
