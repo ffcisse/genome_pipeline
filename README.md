@@ -332,7 +332,7 @@ activated automatically via `--use-conda`:
 
 ```
 results/
-├── qc/<genome>.qc.done                          # human-readable QC report (not just a marker)
+├── qc/<genome>.qc.done                          # human-readable QC report
 ├── parsed/<genome>/{protein,cds}_table.csv       # canonical per-gene sequence tables
 ├── protein_properties/<genome>/protein_properties.csv
 ├── disorder/<genome>/disorder.csv
@@ -351,7 +351,7 @@ results/
 │   ├── pca/                 # per-protein and per-species PCA, colored by each grouping, + PC1/PC2 loadings
 │   ├── clustering/          # genome x property hierarchical clustermap; property-property Spearman clustermap
 │   ├── effect_sizes/        # forest plots of rank-biserial, sorted by |magnitude|
-│   └── sensitivity/         # leave-one-out shrinkage heatmap ("money figure")
+│   └── sensitivity/         # leave-one-out shrinkage heatmap
 └── dashboard/                                    # Phase 6a
     ├── data.json                # the JSON payload embedded in the dashboard (also useful standalone)
     └── proteome_dashboard.html  # the standalone interactive dashboard -- see below
@@ -406,17 +406,13 @@ already-computed tables — no statistics are recomputed for plotting.
 | `pca/` | PCA of the protein property matrix at per-protein and per-species (genome-median) resolution, colored by each grouping, plus PC1/PC2 loadings |
 | `clustering/` | Hierarchical clustermap of genome × property (z-scored medians), and a property-property Spearman correlation clustermap |
 | `effect_sizes/` | Forest/bar plots of rank-biserial effect sizes, sorted by `\|magnitude\|` — one for the primary grouping, one per pairwise subgroup comparison |
-| `sensitivity/` | The leave-one-out "money figure": a heatmap of shrinkage (top properties × excluded subgroup) |
+| `sensitivity/` | The leave-one-out: a heatmap of shrinkage (top properties × excluded subgroup) |
 
 All of it excludes `cds_properties.py`'s 64 raw `codon_<TRIPLET>` count columns from per-property
 figures and effect-size/sensitivity rankings (they'd otherwise dominate a combined ranking purely
 by count) — `config.yaml`'s `visuals.exclude_properties` can drop additional specific properties
 from the per-property figures, and `visuals.top_n_effect_sizes` caps how many properties the
 effect-size/sensitivity figures show (full results always remain in the Phase 4 CSVs regardless).
-
-Genome-agnostic by the same discipline as every earlier phase, and — unlike Phases 1-4 — this was
-confirmed with an actual synthetic-dataset run (different column names, different group values,
-different group count) rather than by code inspection alone.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -463,12 +459,6 @@ then double-click it (or open it from your browser's File → Open) on your lapt
 > ("distributions shown from a sample..."). If you need an exact distribution shape rather than a
 > representative one, use the box plot view or the underlying CSVs directly.
 
-**Genome-agnostic**, verified the same way as Phase 5: a synthetic dataset with different grouping
-column names, different group values/counts, different genome IDs, and unrelated property names
-was run through `build_dashboard_data.py`/`build_dashboard_html.py`, and the resulting dashboard
-was confirmed (via a scripted sweep of every property × grouping × plot-type combination, plus
-both Effect Sizes click-through paths) to render correctly with zero hardcoded strings from the
-real deployment leaking through.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
