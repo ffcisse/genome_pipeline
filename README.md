@@ -67,22 +67,6 @@ the results.
   a sensitivity heatmap), as both PNG and PDF
 - A single standalone HTML dashboard for interactively exploring the same properties/groupings
 
-**The pipeline is genome-agnostic.** It was built against 9 red algae (Rhodophyta) genomes from a
-lifestyle-comparison study (verified end to end: 61,349 proteins / 61,349 CDS across all 9), but
-nothing in the code assumes red algae, that species count, or those specific property values —
-including the grouping columns used for effect sizes and the sensitivity analysis
-(`lifestyle`/`lineage` here are config values, not hardcoded names). Point `config/config.yaml`
-and `config/genomes.tsv` at a different set of genomes and the same rules apply; see
-[Configuration](#configuration) for exactly what to edit.
-
-**Verification level differs by phase.** Phases 5 (static figures) and 6a (interactive dashboard)
-have each additionally been run end-to-end against a *synthetic* dataset built specifically to
-break genome-specific assumptions — different grouping column names, different group values, and a
-different number of distinct values per grouping column than the real 9-genome deployment — and
-confirmed to render correctly with no hardcoded genome/group/property strings leaking through.
-Phases 1-4 are genome-agnostic by construction (no script hardcodes a genome ID, property name, or
-grouping column name/value) but have not had that same synthetic end-to-end run; their
-verification is the real 9-genome dataset plus code inspection.
 
 ### Built With
 
