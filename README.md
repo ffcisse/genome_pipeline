@@ -194,19 +194,27 @@ Tab-separated, one row per genome:
 | `name` | no | Free-text display name, not used in any computation. |
 | *(two grouping columns)* | **yes** | Column names and values are fully configurable — see below. |
 
-**The grouping design:** the statistics in Phase 4 need two grouping variables:
-- A **primary grouping** with exactly 2 values (e.g. `lifestyle`: extremophile/mesophile) — this
-  is what `effect_sizes_<grouping>.csv` and the sensitivity analysis test.
-- A **subgroup column**, typically finer-grained and nested inside the primary grouping (e.g.
-  `lineage`: a phylogenetic clade) — this is what the leave-one-subgroup-out sensitivity analysis
-  drops one value of at a time.
+**Groupings come from `config/genomes.tsv`, not from code.** Give each genome's row whatever label
+columns describe your study, then tell the pipeline which two of those columns to use for the
+built-in statistics via `config.yaml`'s `sensitivity.primary_grouping`/`subgroup_column`:
 
-`config.yaml`'s `sensitivity.primary_grouping`/`subgroup_column` say which two `genomes.tsv`
-columns play these roles — rename `lifestyle`/`lineage` to whatever you want (different column
-names, different values, a 2-value or N-value column either way) and repoint these two config
-keys at them. Nothing in `workflow/scripts/` hardcodes a column name or value: the master tables,
-`species_summary.csv`, `effect_sizes_<grouping>.csv`, and the sensitivity analysis all derive both
-the grouping column names and the comparison order from `config/genomes.tsv`, not from code.
+- **Primary grouping** — your main, 2-group comparison (e.g. `lifestyle`: extremophile vs.
+  mesophile). This is the "A vs. B" every effect-size table tests.
+- **Subgroup column** — a finer-grained column nested inside the primary grouping (e.g.
+  `lineage`, a phylogenetic clade). The leave-one-subgroup-out sensitivity analysis drops one
+  subgroup value at a time, to check whether the primary-grouping effect is really just one
+  subgroup driving it rather than the thing you think you're measuring.
+
+A tiny example `config/genomes.tsv`:
+
+| genome_id | lifestyle | lineage |
+|---|---|---|
+| Genome_A | extremophile | Clade_1 |
+| Genome_B | extremophile | Clade_1 |
+| Genome_C | mesophile | Clade_2 |
+
+Column names and values here are entirely up to you — nothing in the code is hardcoded to
+`lifestyle`/`lineage`.
 
 **Which value is "A"?** For any grouping column, `cles`/`rank_biserial` need a direction — which
 value counts as "A" (vs "B"), and, for a >2-value column, what order pairwise comparisons are
@@ -463,9 +471,7 @@ then double-click it (or open it from your browser's File → Open) on your lapt
   same property/plot-type view scoped to genomes.
 - **Effect Sizes** — an interactive forest plot of rank-biserial effect sizes, switchable between
   the primary grouping and any subgroup pairwise comparison, sorted by magnitude. Clicking a bar
-  jumps to that property in Property Explorer — unless it's a CDS-level property (no per-protein
-  sample to plot yet, see [Roadmap](#roadmap)), in which case it shows a short message instead of
-  a dead click.
+  jumps to that property in Property Explorer, including CDS-level properties (Phase 6b).
 - **Sensitivity** — the leave-one-subgroup-out shrinkage heatmap, with a plain-language explanation
   of positive vs. negative shrinkage (same interpretation as
   [Interpreting the Statistics](#interpreting-the-statistics)).
@@ -525,10 +531,6 @@ lifestyle effect was actually a lineage effect.)
 
 ## Known Limitations
 
-- **Phase 6b is not started.** The dashboard's Property Explorer only covers protein-level
-  properties — CDS/codon-level property views, PCA/clustering views inside the dashboard (Phase 5
-  already has these as static figures), cross-property scatter plots, and export/download are all
-  planned but not built. See [Roadmap](#roadmap).
 - **Phase 6a has no dedicated `submit_phase6a.sh`/`run_phase6a.sbatch` yet** — it rides along on
   `rule all` via any other phase's submit script (see [Running It](#running-it)); a dedicated
   wrapper could be added later the same way Phases 1-5 each got one.
@@ -573,10 +575,10 @@ lifestyle effect was actually a lineage effect.)
 - [x] Phase 5 — Static visualizations (457 figures)
 - [x] Phase 6a — Interactive dashboard (Overview, Property Explorer, Species View, Effect Sizes,
       Sensitivity)
-- [ ] Phase 6b — CDS/codon-level dashboard views
-- [ ] Phase 6b — PCA/clustering dashboard views
-- [ ] Phase 6b — Cross-property scatter plots
-- [ ] Phase 6b — Export/download from the dashboard
+- [x] Phase 6b — CDS/codon-level dashboard views
+- [x] Phase 6b — PCA/clustering dashboard views
+- [x] Phase 6b — Cross-property scatter plots
+- [x] Phase 6b — Export/download from the dashboard
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
