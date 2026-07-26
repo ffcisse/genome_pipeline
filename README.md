@@ -67,6 +67,31 @@ the results.
   a sensitivity heatmap), as both PNG and PDF
 - A single standalone HTML dashboard for interactively exploring the same properties/groupings
 
+### Built With
+
+[![Snakemake](https://img.shields.io/badge/Snakemake-039475?style=for-the-badge&logo=snakemake&logoColor=white)](https://snakemake.readthedocs.io/)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![pandas](https://img.shields.io/badge/pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+[![Biopython](https://img.shields.io/badge/Biopython-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://biopython.org/)
+[![metapredict](https://img.shields.io/badge/metapredict-orange?style=for-the-badge)](https://github.com/idptools/metapredict)
+[![codonW](https://img.shields.io/badge/codonW-1.4.4-lightgrey?style=for-the-badge)](https://anaconda.org/bioconda/codonw)
+[![Plotly.js](https://img.shields.io/badge/Plotly.js-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)](https://plotly.com/javascript/)
+[![SLURM](https://img.shields.io/badge/SLURM-blue?style=for-the-badge)](https://slurm.schedmd.com/)
+
+| Tool | Used for |
+|---|---|
+| **Snakemake** | Pipeline orchestration — every rule, wildcard, and DAG dependency in `workflow/` |
+| **Python 3.11** | Every rule's implementation (`workflow/scripts/*.py`) |
+| **pandas / numpy / scipy** | Tabular data, statistics (Mann-Whitney U, effect sizes) |
+| **Biopython** | FASTA parsing (`qc`, `parse`) |
+| **metapredict** | Intrinsic disorder prediction (Phase 2b, PyTorch-based) |
+| **codonW** | ENC, GC, GC3s, codon usage (Phase 3, standalone C program) |
+| **Plotly.js** | The interactive dashboard's plots (Phase 6a, vendored/inlined, not a CDN) |
+| **SLURM** | Optional cluster execution on DORI — see [Running It](#running-it) |
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
 ## Project Origin
 
 This pipeline was developed and validated using a comparative genomics project on **Rhodophyta
@@ -97,29 +122,6 @@ and is a key example of why this pipeline supports comparing by more than one gr
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Built With
-
-[![Snakemake](https://img.shields.io/badge/Snakemake-039475?style=for-the-badge&logo=snakemake&logoColor=white)](https://snakemake.readthedocs.io/)
-[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![pandas](https://img.shields.io/badge/pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
-[![Biopython](https://img.shields.io/badge/Biopython-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://biopython.org/)
-[![metapredict](https://img.shields.io/badge/metapredict-orange?style=for-the-badge)](https://github.com/idptools/metapredict)
-[![codonW](https://img.shields.io/badge/codonW-1.4.4-lightgrey?style=for-the-badge)](https://anaconda.org/bioconda/codonw)
-[![Plotly.js](https://img.shields.io/badge/Plotly.js-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)](https://plotly.com/javascript/)
-[![SLURM](https://img.shields.io/badge/SLURM-blue?style=for-the-badge)](https://slurm.schedmd.com/)
-
-| Tool | Used for |
-|---|---|
-| **Snakemake** | Pipeline orchestration — every rule, wildcard, and DAG dependency in `workflow/` |
-| **Python 3.11** | Every rule's implementation (`workflow/scripts/*.py`) |
-| **pandas / numpy / scipy** | Tabular data, statistics (Mann-Whitney U, effect sizes) |
-| **Biopython** | FASTA parsing (`qc`, `parse`) |
-| **metapredict** | Intrinsic disorder prediction (Phase 2b, PyTorch-based) |
-| **codonW** | ENC, GC, GC3s, codon usage (Phase 3, standalone C program) |
-| **Plotly.js** | The interactive dashboard's plots (Phase 6a, vendored/inlined, not a CDN) |
-| **SLURM** | Optional cluster execution on DORI — see [Running It](#running-it) |
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Getting Started
 
