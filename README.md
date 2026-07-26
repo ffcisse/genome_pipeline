@@ -464,7 +464,7 @@ then double-click it (or open it from your browser's File → Open) on your lapt
 
 ### Interpreting the Statistics
 
-**p-values are not the signal here.** With ~61,000 proteins/CDS, Mann-Whitney p-values collapse
+**p-values don't indicate much.** With ~61,000 proteins/CDS in the example, Mann-Whitney p-values collapse
 to ~0 for almost every property regardless of whether the difference is biologically meaningful —
 they're reported for reference, not as evidence of importance.
 
@@ -487,11 +487,6 @@ contribution by dropping it and recomputing:
   *more*, meaning it had been diluting the effect (likely because it overlaps the other primary
   group rather than being distinct from it).
 - **`shrinkage` ≈ 0**: the property's effect doesn't depend much on that particular subgroup.
-
-(In the verified red-algae dataset, this is exactly how the analysis was validated: several
-protein properties showed a real `lifestyle` effect on paper, but dropping the `Galdieria` lineage
-shrank it substantially — while dropping `Cyanidiales` *strengthened* it — showing the apparent
-lifestyle effect was actually a lineage effect.)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
