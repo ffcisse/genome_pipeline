@@ -113,12 +113,6 @@ and tested against, and is used throughout this README for examples.
 | Porpu1328_1 | mesophile | Mesophile_lineage |
 | Rhomari1 | mesophile | Mesophile_lineage |
 
-**Central finding:** several properties that initially appeared to be extremophile adaptations
-(carbon oxidation state, cysteine fraction, disorder fraction) are actually driven by the
-*Galdieria* lineage rather than lifestyle — Cyanidiales extremophiles largely overlap mesophiles on
-these properties. This was established using the pipeline's configurable effect-size and
-leave-one-subgroup-out sensitivity analyses (see [Interpreting the Statistics](#interpreting-the-statistics)),
-and is a key example of why this pipeline supports comparing by more than one grouping variable.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
