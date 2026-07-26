@@ -278,11 +278,10 @@ so their submit scripts run bare `snakemake`; Phase 2b's `disorder` output is de
 part of `rule all` (see below), so `submit_phase2b.sh` names its targets explicitly.
 
 **Phase 6a (`dashboard_data`, `dashboard`) doesn't have its own `submit_phase6a.sh` yet** — it's
-light (no new heavy conda env, no per-genome compute) and, like Phases 1/2a/3/4/5, is already part
-of `rule all`'s default target, so any bare `snakemake --cores N --use-conda` run — including
-re-running `submit_phase5.sh`, or any earlier phase's script, once upstream data is in place —
-builds it too. Its two rules were verified inside a real SLURM job before being trusted (see
-`SLURM.md`), just via an ad hoc job rather than a permanent wrapper script.
+light (no new heavy conda env, no per-genome compute) and is already part
+of `rule all`'s default target, so any bare `snakemake --cores N --use-conda` run, including
+re-running `submit_phase5.sh`, or any earlier phase's script, once upstream data is in place, 
+builds it too. 
 
 Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your site has defaults for
 account/QOS/mail-user — the wrapper is what supplies those from `config.yaml`.
@@ -424,13 +423,12 @@ effect-size/sensitivity figures show (full results always remain in the Phase 4 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-### Interactive Dashboard (Phase 6a)
+### Interactive Dashboard (Phase 6)
 
 `results/dashboard/proteome_dashboard.html` is **one standalone HTML file** (~5MB for the real
-9-genome dataset) that opens directly in a browser — no server, no install, and it makes **no
-network requests at all**: Plotly.js is vendored (embedded) rather than loaded from a CDN, and the
-data it plots is embedded JSON, not fetched. Built by two rules (`dashboard_data` → `dashboard`;
-see `workflow/rules/dashboard.smk`), part of `rule all`'s default target like every other phase.
+9-genome dataset) that opens directly in a browser: Plotly.js is embedded rather than loaded from a CDN, and the
+data it plots is embedded JSON. Built by two rules (`dashboard_data` → `dashboard`;
+see `workflow/rules/dashboard.smk`), part of `rule all`'s default target.
 
 **Getting it off the cluster:** it's a single file, so a plain `scp` works —
 
@@ -457,8 +455,8 @@ then double-click it (or open it from your browser's File → Open) on your lapt
 > [!NOTE]
 > **The sampling caveat** (read this before trusting a shape you see in the dashboard): every
 > summary number in the dashboard — medians, the *exact* box-plot quartiles, effect sizes,
-> sensitivity — is computed from the **full** dataset (all 61,349 proteins in the real
-> deployment), never recomputed in the browser. But the violin/histogram/density views, and the
+> sensitivity — is computed from the **full** dataset
+> , never recomputed in the browser. But the violin/histogram/density views, and the
 > Species View comparison plot when set to those modes, are drawn from a **downsampled**
 > per-protein sample: up to 2,500 proteins per genome, fixed seed (42) for reproducibility,
 > ~22,500 rows total for the real dataset. The UI captions every sampled view accordingly
@@ -501,13 +499,6 @@ contribution by dropping it and recomputing:
 - **Phase 6a has no dedicated `submit_phase6a.sh`/`run_phase6a.sbatch` yet** — it rides along on
   `rule all` via any other phase's submit script (see [Running It](#running-it)); a dedicated
   wrapper could be added later the same way Phases 1-5 each got one.
-- **SignalP6 signal-peptide predictions are produced separately, outside this pipeline** — not a
-  Snakemake rule, and this is deliberate, not an oversight. SignalP6 is license-gated (DTU Health
-  Tech academic license) and isn't reproducibly installable from a public conda channel, so it
-  doesn't fit this pipeline's `--use-conda`-everywhere reproducibility model. (`download_from_jgi.sh`
-  can fetch JGI's own precomputed `sigp6_info` predictions as a download *category* — see
-  [Input Requirements](#input-requirements) — but that's a different thing from running SignalP6
-  yourself, and neither path is wired into any pipeline rule.)
 - **Only two grouping columns are wired up by default.** `workflow/Snakefile`'s `GROUPING_COLUMNS`
   is built from exactly `sensitivity.primary_grouping`/`subgroup_column` — those are the only two
   columns that automatically get merged into the master tables and get their own
@@ -525,7 +516,7 @@ contribution by dropping it and recomputing:
   filesystem — irrelevant/must be changed if you're not using the nested-download-tree staging
   path at all (the common case: just use a flat `input.protein_dir`/`input.cds_dir` and delete or
   ignore the `staging:` block).
-- **`parse`'s `.parsed.done` marker is vestigial**, not orphaned — it's still produced (a leftover
+- **`parse`'s `.parsed.done` marker is vestigial** — it's still produced (a leftover
   from the original Phase 0 scaffold), but nothing downstream reads it anymore; `protein_properties`/
   `cds_properties` read the real parsed tables directly.
 
