@@ -67,6 +67,35 @@ the results.
   a sensitivity heatmap), as both PNG and PDF
 - A single standalone HTML dashboard for interactively exploring the same properties/groupings
 
+## Project Origin
+
+This pipeline was developed and validated using a comparative genomics project on **Rhodophyta
+(red algae)**, comparing extremophilic and mesophilic lineages. While the pipeline itself is
+genome-agnostic (see [Configuration](#configuration)), the dataset below is the one it was built
+and tested against, and is used throughout this README for examples.
+
+**Study design:** 9 genomes across two lifestyle groups and three phylogenetic lineages.
+
+| genome | lifestyle | lineage |
+|---|---|---|
+| Cyamer1 | extremophile | Cyanidiales |
+| CyamerSoos_1_1 | extremophile | Cyanidiales |
+| Cyanyang1 | extremophile | Cyanidiales |
+| Galph1_1 | extremophile | Galdieria |
+| Galsul1 | extremophile | Galdieria |
+| Galyel1 | extremophile | Galdieria |
+| Porcrue1 | mesophile | Mesophile_lineage |
+| Porpu1328_1 | mesophile | Mesophile_lineage |
+| Rhomari1 | mesophile | Mesophile_lineage |
+
+**Central finding:** several properties that initially appeared to be extremophile adaptations
+(carbon oxidation state, cysteine fraction, disorder fraction) are actually driven by the
+*Galdieria* lineage rather than lifestyle — Cyanidiales extremophiles largely overlap mesophiles on
+these properties. This was established using the pipeline's configurable effect-size and
+leave-one-subgroup-out sensitivity analyses (see [Interpreting the Statistics](#interpreting-the-statistics)),
+and is a key example of why this pipeline supports comparing by more than one grouping variable.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Built With
 
