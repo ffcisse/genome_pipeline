@@ -139,10 +139,18 @@ conda create -n snakemake -c conda-forge -c bioconda snakemake
 conda activate snakemake
 
 # 2. Point config at your genomes
-#    - config/genomes.tsv: one row per genome
-#    - config/config.yaml: input.protein_dir / input.cds_dir, or staging.source_dir
-$EDITOR config/genomes.tsv
-$EDITOR config/config.yaml
+#    Open each file below in a text editor (e.g. `vim`, `nano`, or `code`) and fill in your
+#    own genome names, paths, and grouping labels -- these two files are the ONLY things you
+#    need to edit to run this pipeline on a different genome set. No code changes required.
+#
+#    - config/genomes.tsv: one row per genome (genome ID, input paths, and any grouping
+#      columns you want to use for comparisons -- e.g. lifestyle, lineage)
+#    - config/config.yaml: set input.protein_dir / input.cds_dir (or staging.source_dir),
+#      plus which genomes.tsv columns to use as your primary grouping and subgroup
+#
+#    See [Configuration](#configuration) for the full column reference and a worked example.
+vim config/genomes.tsv
+vim config/config.yaml
 ```
 
 No code editing required to point this at a different genome set — just `config/genomes.tsv` and
