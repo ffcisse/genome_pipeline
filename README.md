@@ -67,22 +67,6 @@ the results.
   a sensitivity heatmap), as both PNG and PDF
 - A single standalone HTML dashboard for interactively exploring the same properties/groupings
 
-**The pipeline is genome-agnostic.** It was built against 9 red algae (Rhodophyta) genomes from a
-lifestyle-comparison study (verified end to end: 61,349 proteins / 61,349 CDS across all 9), but
-nothing in the code assumes red algae, that species count, or those specific property values —
-including the grouping columns used for effect sizes and the sensitivity analysis
-(`lifestyle`/`lineage` here are config values, not hardcoded names). Point `config/config.yaml`
-and `config/genomes.tsv` at a different set of genomes and the same rules apply; see
-[Configuration](#configuration) for exactly what to edit.
-
-**Verification level differs by phase.** Phases 5 (static figures) and 6a (interactive dashboard)
-have each additionally been run end-to-end against a *synthetic* dataset built specifically to
-break genome-specific assumptions — different grouping column names, different group values, and a
-different number of distinct values per grouping column than the real 9-genome deployment — and
-confirmed to render correctly with no hardcoded genome/group/property strings leaking through.
-Phases 1-4 are genome-agnostic by construction (no script hardcodes a genome ID, property name, or
-grouping column name/value) but have not had that same synthetic end-to-end run; their
-verification is the real 9-genome dataset plus code inspection.
 
 ### Built With
 
@@ -138,8 +122,7 @@ $EDITOR config/config.yaml
 
 No code editing required to point this at a different genome set — just `config/genomes.tsv` and
 `config/config.yaml`, including the grouping columns used for effect sizes/sensitivity analysis
-(see [Configuration](#configuration)). See [Known Limitations](#known-limitations) for the
-remaining rough edges.
+(see [Configuration](#configuration)). See [Known Limitations](#known-limitations).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -157,14 +140,13 @@ workflow/scripts/submit_phase1.sh        # see Running It below for the full pha
 
 `rule all`'s default target is the dashboard itself (`results/dashboard/proteome_dashboard.html`),
 so a plain `snakemake --cores 4 --use-conda` (or the last submit script in the phase list, since
-each one just runs bare `snakemake`) pulls in every phase through Phase 6a, figures and dashboard
+each one just runs bare `snakemake`) pulls in every phase through Phase 6B, figures and dashboard
 included — see [Interactive Dashboard](#interactive-dashboard-phase-6a) for what to do with the
 result.
 
 ### Configuration
 
-This is the section that matters most. Two files drive everything; nothing else needs editing to
-run on a new genome set.
+Edit these two files to run on a new genome set.
 
 #### `config/config.yaml`
 
@@ -306,7 +288,7 @@ Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your sit
 account/QOS/mail-user — the wrapper is what supplies those from `config.yaml`.
 
 > [!WARNING]
-> **Phase 2b (`disorder`) is heavy.** It loads a real PyTorch model and runs inference over every
+> **Phase 2b (`disorder`) is heavy.** It loads a PyTorch model and runs inference over every
 > protein. Manual single-threaded testing needed ~2h/genome, which is why this rule requests a
 > full 64-core exclusive node (the resource sizing behind `run_phase2b.sbatch`'s 1.5h budget); the
 > pipeline's actual batched implementation is considerably faster in practice — the verified
@@ -341,10 +323,10 @@ activated automatically via `--use-conda`:
   on this deployment) — it's a standalone C program, not a Python package.
 - **metapredict** comes from PyPI via the env's `pip:` section (not on conda-forge/bioconda) and
   pulls in PyTorch as a dependency — this is why `disorder.yaml` is CPU-inference-heavy to
-  install and why the `disorder` rule needs real compute (see the SLURM warning above).
+  install(see the SLURM warning above).
 
 > [!WARNING]
-> **Known issue, documented honestly:** `--use-conda` environments have broken *inside SLURM
+> **Known issue:** `--use-conda` environments have broken *inside SLURM
 > jobs* on this deployment more than once — while working fine when tested interactively on a
 > login node. Root causes varied (a cold/first-touch environment on a freshly allocated node in
 > one case; a genuine `libstdc++` ABI conflict between pip-installed PyTorch and conda-forge-built
@@ -358,7 +340,7 @@ activated automatically via `--use-conda`:
 
 ```
 results/
-├── qc/<genome>.qc.done                          # human-readable QC report (not just a marker)
+├── qc/<genome>.qc.done                          # human-readable QC report
 ├── parsed/<genome>/{protein,cds}_table.csv       # canonical per-gene sequence tables
 ├── protein_properties/<genome>/protein_properties.csv
 ├── disorder/<genome>/disorder.csv
@@ -377,7 +359,7 @@ results/
 │   ├── pca/                 # per-protein and per-species PCA, colored by each grouping, + PC1/PC2 loadings
 │   ├── clustering/          # genome x property hierarchical clustermap; property-property Spearman clustermap
 │   ├── effect_sizes/        # forest plots of rank-biserial, sorted by |magnitude|
-│   └── sensitivity/         # leave-one-out shrinkage heatmap ("money figure")
+│   └── sensitivity/         # leave-one-out shrinkage heatmap
 └── dashboard/                                    # Phase 6a
     ├── data.json                # the JSON payload embedded in the dashboard (also useful standalone)
     └── proteome_dashboard.html  # the standalone interactive dashboard -- see below
@@ -432,17 +414,13 @@ already-computed tables — no statistics are recomputed for plotting.
 | `pca/` | PCA of the protein property matrix at per-protein and per-species (genome-median) resolution, colored by each grouping, plus PC1/PC2 loadings |
 | `clustering/` | Hierarchical clustermap of genome × property (z-scored medians), and a property-property Spearman correlation clustermap |
 | `effect_sizes/` | Forest/bar plots of rank-biserial effect sizes, sorted by `\|magnitude\|` — one for the primary grouping, one per pairwise subgroup comparison |
-| `sensitivity/` | The leave-one-out "money figure": a heatmap of shrinkage (top properties × excluded subgroup) |
+| `sensitivity/` | The leave-one-out: a heatmap of shrinkage (top properties × excluded subgroup) |
 
 All of it excludes `cds_properties.py`'s 64 raw `codon_<TRIPLET>` count columns from per-property
 figures and effect-size/sensitivity rankings (they'd otherwise dominate a combined ranking purely
 by count) — `config.yaml`'s `visuals.exclude_properties` can drop additional specific properties
 from the per-property figures, and `visuals.top_n_effect_sizes` caps how many properties the
 effect-size/sensitivity figures show (full results always remain in the Phase 4 CSVs regardless).
-
-Genome-agnostic by the same discipline as every earlier phase, and — unlike Phases 1-4 — this was
-confirmed with an actual synthetic-dataset run (different column names, different group values,
-different group count) rather than by code inspection alone.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -487,18 +465,12 @@ then double-click it (or open it from your browser's File → Open) on your lapt
 > ("distributions shown from a sample..."). If you need an exact distribution shape rather than a
 > representative one, use the box plot view or the underlying CSVs directly.
 
-**Genome-agnostic**, verified the same way as Phase 5: a synthetic dataset with different grouping
-column names, different group values/counts, different genome IDs, and unrelated property names
-was run through `build_dashboard_data.py`/`build_dashboard_html.py`, and the resulting dashboard
-was confirmed (via a scripted sweep of every property × grouping × plot-type combination, plus
-both Effect Sizes click-through paths) to render correctly with zero hardcoded strings from the
-real deployment leaking through.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Interpreting the Statistics
 
-**p-values are not the signal here.** With ~61,000 proteins/CDS, Mann-Whitney p-values collapse
+**p-values don't indicate much.** With ~61,000 proteins/CDS in the example, Mann-Whitney p-values collapse
 to ~0 for almost every property regardless of whether the difference is biologically meaningful —
 they're reported for reference, not as evidence of importance.
 
@@ -521,11 +493,6 @@ contribution by dropping it and recomputing:
   *more*, meaning it had been diluting the effect (likely because it overlaps the other primary
   group rather than being distinct from it).
 - **`shrinkage` ≈ 0**: the property's effect doesn't depend much on that particular subgroup.
-
-(In the verified red-algae dataset, this is exactly how the analysis was validated: several
-protein properties showed a real `lifestyle` effect on paper, but dropping the `Galdieria` lineage
-shrank it substantially — while dropping `Cyanidiales` *strengthened* it — showing the apparent
-lifestyle effect was actually a lineage effect.)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
