@@ -140,8 +140,7 @@ conda activate snakemake
 
 # 2. Point config at your genomes
 #    Open each file below in a text editor (e.g. `vim`, `nano`, or `code`) and fill in your
-#    own genome names, paths, and grouping labels -- these two files are the ONLY things you
-#    need to edit to run this pipeline on a different genome set. No code changes required.
+#    own genome names, paths, and grouping labels.
 #
 #    - config/genomes.tsv: one row per genome (genome ID, input paths, and any grouping
 #      columns you want to use for comparisons -- e.g. lifestyle, lineage)
