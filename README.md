@@ -309,11 +309,23 @@ up to date. Phases 1, 2a, 3, 4, and 5 build their outputs as part of `rule all`'
 so their submit scripts run bare `snakemake`; Phase 2b's `disorder` output is deliberately *not*
 part of `rule all` (see below), so `submit_phase2b.sh` names its targets explicitly.
 
-**Phase 6a (`dashboard_data`, `dashboard`) doesn't have its own `submit_phase6a.sh` yet** — it's
-light (no new heavy conda env, no per-genome compute) and is already part
-of `rule all`'s default target, so any bare `snakemake --cores N --use-conda` run, including
-re-running `submit_phase5.sh`, or any earlier phase's script, once upstream data is in place, 
-builds it too. 
+**How the phase scripts actually work.** Snakemake resolves dependencies backward from a target,
+not forward from a starting phase. Each `submit_phaseN.sh` script just tells Snakemake "build this
+output file" — Snakemake then automatically figures out everything upstream that's needed to
+produce it, and runs *only* whatever is missing or out of date.
+
+This means:
+- **You don't have to run phases in order.** If you run `submit_phase6.sh` on a fresh checkout with
+  nothing done yet, it will run the entire pipeline end-to-end (staging through the dashboard) in
+  one submission — there's no requirement to run phases 1-5 first.
+- **Running a later phase after earlier ones are done only builds what's new.** If phases 1-5 are
+  already complete, `submit_phase6.sh` will skip everything that already exists and just build the
+  summaries/visuals/dashboard steps still missing.
+- **The phase-numbered scripts exist for convenience and incremental verification** (so you can
+  check each stage's output before moving on) Feel free to jump straight to whichever `submit_phaseN.sh` produces the output you
+  actually want.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your site has defaults for
 account/QOS/mail-user — the wrapper is what supplies those from `config.yaml`.
