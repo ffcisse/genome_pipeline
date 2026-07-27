@@ -325,8 +325,6 @@ This means:
   check each stage's output before moving on) Feel free to jump straight to whichever `submit_phaseN.sh` produces the output you
   actually want.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 Submit via the wrapper, not `sbatch run_phaseN.sbatch` directly, unless your site has defaults for
 account/QOS/mail-user — the wrapper is what supplies those from `config.yaml`.
 
