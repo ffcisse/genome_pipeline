@@ -295,12 +295,13 @@ Each phase has a `submit_phaseN.sh` wrapper (reads `config.yaml`'s `slurm:` bloc
 
 | Script | Runs | Resources | Notes |
 |---|---|---|---|
-| `submit_phase1.sh` | `stage_inputs`→`qc`→`parse` | 4 CPU / 16G / 1h | Light |
-| `submit_phase2a.sh` | `protein_properties` | 4 CPU / 16G / 30min | Light |
-| `submit_phase2b.sh` | `disorder` | **64 CPU (exclusive node) / all memory / 1.5h** | **Heavy — see warning below** |
-| `submit_phase3.sh` | `cds_properties` | 4 CPU / 16G / 30min | Light |
-| `submit_phase4.sh` | `merge_*`/`species_summary`/`effect_sizes`/`sensitivity_*` | 4 CPU / 16G / 30min | Light |
-| `submit_phase5.sh` | `plot_*` (457 figures) | 4 CPU / 16G / 30min | Light |
+| `submit_phase1.sh` | `stage_inputs`→`qc`→`parse` | 4 CPU / 16G | Light |
+| `submit_phase2a.sh` | `protein_properties` | 4 CPU / 16G | Light |
+| `submit_phase2b.sh` | `disorder` | **64 CPU (exclusive node) | **Heavy — see warning below** |
+| `submit_phase3.sh` | `cds_properties` | 4 CPU / 16G | Light |
+| `submit_phase4.sh` | `merge_*`/`species_summary`/`effect_sizes`/`sensitivity_*` | 4 CPU / 16G | Light |
+| `submit_phase5.sh` | `plot_*` (457 figures) | 4 CPU / 16G | Light |
+| `submit_phase6.sh` | `interactive_dashboard_*` | 4 CPU / 16G | Light |
 
 Each script runs `snakemake --cores $SLURM_CPUS_PER_TASK --use-conda` locally inside one SLURM
 allocation (not Snakemake's separate cluster-executor-plugin model), so running an earlier
@@ -538,9 +539,6 @@ contribution by dropping it and recomputing:
 
 ## Known Limitations
 
-- **Phase 6a has no dedicated `submit_phase6a.sh`/`run_phase6a.sbatch` yet** — it rides along on
-  `rule all` via any other phase's submit script (see [Running It](#running-it)); a dedicated
-  wrapper could be added later the same way Phases 1-5 each got one.
 - **Only two grouping columns are wired up by default.** `workflow/Snakefile`'s `GROUPING_COLUMNS`
   is built from exactly `sensitivity.primary_grouping`/`subgroup_column` — those are the only two
   columns that automatically get merged into the master tables and get their own
