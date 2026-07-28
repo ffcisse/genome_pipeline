@@ -241,7 +241,7 @@ values sort alphabetically instead — either way, nothing needs a code change.
 default — `workflow/Snakefile`'s `GROUPING_COLUMNS` list is built from exactly
 `sensitivity.primary_grouping`/`subgroup_column`, so those are the only two columns that
 automatically flow into the master tables and get an `effect_sizes_<grouping>.csv`. Every script
-already accepts an arbitrary set of group columns (nothing to edit there); adding a third means
+already accepts an arbitrary set of group columns; adding a third means
 adding a config key and one line in the Snakefile to fold it into `GROUPING_COLUMNS` — see
 [Known Limitations](#known-limitations) for exactly what that would look like.
 
@@ -310,8 +310,8 @@ up to date. Phases 1, 2a, 3, 4, and 5 build their outputs as part of `rule all`'
 so their submit scripts run bare `snakemake`; Phase 2b's `disorder` output is deliberately *not*
 part of `rule all` (see below), so `submit_phase2b.sh` names its targets explicitly.
 
-**How the phase scripts actually work.** Snakemake resolves dependencies backward from a target,
-not forward from a starting phase. Each `submit_phaseN.sh` script just tells Snakemake "build this
+**How the phase scripts actually work.** Snakemake resolves dependencies backward from a target. 
+Each `submit_phaseN.sh` script  tells Snakemake "build this
 output file" — Snakemake then automatically figures out everything upstream that's needed to
 produce it, and runs *only* whatever is missing or out of date.
 
@@ -469,7 +469,7 @@ effect-size/sensitivity figures show (full results always remain in the Phase 4 
 ### Interactive Dashboard (Phase 6)
 
 `results/dashboard/proteome_dashboard.html` is **one standalone HTML file** (~5MB for the real
-9-genome dataset) that opens directly in a browser: Plotly.js is embedded rather than loaded from a CDN, and the
+9-genome dataset) that opens directly in a browser: Plotly.js is embedded, and the
 data it plots is embedded JSON. Built by two rules (`dashboard_data` → `dashboard`;
 see `workflow/rules/dashboard.smk`), part of `rule all`'s default target.
 
@@ -493,6 +493,21 @@ then double-click it (or open it from your browser's File → Open) on your lapt
   jumps to that property in Property Explorer, including CDS-level properties (Phase 6b).
 - **Sensitivity** — the leave-one-subgroup-out shrinkage heatmap, with a plain-language explanation
   of positive vs. negative shrinkage (same interpretation as
+- **Codon Usage** — a heatmap of relative codon frequency (64 codons) per genome, with
+  group-ordered rows so lineage/lifestyle patterns in codon preference are visible at a glance.
+- **PCA** — principal component analysis at per-protein, per-CDS, or per-species resolution
+  (combined protein+CDS features only at species resolution, where a genome-level join is
+  well-defined), colored by any grouping, with a PC1/PC2 loadings panel showing which properties
+  drive each axis.
+- **Clustering** — two switchable views: a genome × property hierarchical clustermap with
+  dendrogram (z-scored), and a property-property Spearman correlation heatmap for spotting
+  redundant vs. independent properties.
+- **Cross-property Scatter** — plot any two properties from the same table against each other,
+  colored by any grouping, with the exact Spearman correlation displayed and optional marginal
+  distributions.
+- **Export** — download the currently displayed plot as PNG, the underlying data for the current
+  view as CSV, or the full summary tables (species summary, effect sizes, sensitivity) as CSV —
+  all client-side, no server required.
   [Interpreting the Statistics](#interpreting-the-statistics)).
 
 > [!NOTE]
