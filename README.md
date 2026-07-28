@@ -481,7 +481,7 @@ scp <your-username>@<cluster-host>:/path/to/genome_pipeline/results/dashboard/pr
 
 then double-click it (or open it from your browser's File → Open) on your laptop. No further setup.
 
-**What's in it** — five sections, navigated from the left sidebar:
+**What's in it** — 10 sections, navigated from the left sidebar:
 - **Overview** — genome/group counts, total proteins/CDS, and a Phase 1 QC summary table.
 - **Property Explorer** — pick a property, a grouping (species / primary grouping / subgroup), and
   a plot type (box, violin, histogram, or density/KDE); the plot updates live. This is the
