@@ -511,7 +511,7 @@ then double-click it (or open it from your browser's File → Open) on your lapt
   [Interpreting the Statistics](#interpreting-the-statistics)).
 
 > [!NOTE]
-> **The sampling caveat** (read this before trusting a shape you see in the dashboard): every
+> **The sampling caveat**: every
 > summary number in the dashboard — medians, the *exact* box-plot quartiles, effect sizes,
 > sensitivity — is computed from the **full** dataset
 > , never recomputed in the browser. But the violin/histogram/density views, and the
