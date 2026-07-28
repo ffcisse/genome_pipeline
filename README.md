@@ -2,7 +2,7 @@
 
 <div align="center">
 
-# GenomeCompare — Protein & Genome Property Analysis Across Any Genome Set
+# GenomeCompare 
 
 **A reproducible Snakemake pipeline for comparative genomics — protein/CDS property computation, cross-genome statistics, static figures, and an interactive dashboard, all driven by two config files.**
 
