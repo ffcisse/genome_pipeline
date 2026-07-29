@@ -79,6 +79,20 @@ group_value_order:
   lifestyle: [extremophile, mesophile]
   lineage: [Galdieria, Cyanidiales, Mesophile_lineage]
 
+# ---- Group display colors (optional) ----
+# Per-value hex colors for the dashboard's group-colored views (currently
+# Effect Sizes' primary-grouping comparison; Property Explorer/legend
+# swatches read the same map). Optional and additive at every level: omit
+# a value, a column, or this whole block, and the dashboard's own
+# programmatic palette fills in for whatever's missing -- same fallback
+# discipline as group_value_order above. Not required for a value to also
+# appear in group_value_order (they're independent, though in practice
+# you'll usually set both for the same columns).
+group_colors:
+  lifestyle:
+    extremophile: "#1f77b4"  # blue
+    mesophile: "#ff7f0e"     # orange
+
 # ---- Visualization (Phase 5, optional) ----
 # Every property plotted individually (boxplots, histograms/KDE) comes from
 # whichever numeric columns are actually present in the master tables minus

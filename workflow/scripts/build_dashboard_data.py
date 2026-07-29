@@ -296,6 +296,26 @@ def codon_usage_block(cds_df: pd.DataFrame, genome_order: list) -> dict:
     return {"codons": codon_names, "frequencies": frequencies}
 
 
+def parse_color_map(tokens: list, observed_values: list, column_name: str) -> dict:
+    """Turn ["value=#hexcolor", ...] tokens (config.yaml's optional
+    group_colors block, passed through as CLI args) into a {value: color}
+    dict for the payload. Partial maps are fine -- a value with no
+    configured color is simply absent from the returned dict, and the
+    dashboard JS falls back to its own programmatic palette for it, same
+    fallback discipline as resolve_group_order's group_value_order. An
+    unknown value (typo, or stale after a genome_table edit) fails loudly
+    rather than silently doing nothing, matching resolve_group_order."""
+    colors = {}
+    for token in tokens:
+        value, _, color = token.partition("=")
+        if value not in observed_values:
+            raise AssertionError(
+                f"group_colors.{column_name}.{value} doesn't match any observed value {sorted(observed_values)}"
+            )
+        colors[value] = color
+    return colors
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--master-protein-table", required=True)
@@ -309,6 +329,8 @@ def main():
     parser.add_argument("--subgroup-column", required=True)
     parser.add_argument("--primary-order", nargs="*", default=[])
     parser.add_argument("--subgroup-order", nargs="*", default=[])
+    parser.add_argument("--primary-colors", nargs="*", default=[])
+    parser.add_argument("--subgroup-colors", nargs="*", default=[])
     parser.add_argument("--exclude-properties", nargs="*", default=[])
     parser.add_argument("--sample-per-genome", type=int, required=True)
     parser.add_argument("--sample-seed", type=int, required=True)
@@ -327,6 +349,11 @@ def main():
 
     primary_order = resolve_group_order(genome_labels[primary_col].dropna().unique(), args.primary_order or None)
     subgroup_order = resolve_group_order(genome_labels[subgroup_col].dropna().unique(), args.subgroup_order or None)
+
+    group_colors = {
+        primary_col: parse_color_map(args.primary_colors, primary_order, primary_col),
+        subgroup_col: parse_color_map(args.subgroup_colors, subgroup_order, subgroup_col),
+    }
 
     # ---- genomes (ordered by subgroup order, then genome id) ----
     subgroup_rank = {v: i for i, v in enumerate(subgroup_order)}
@@ -498,6 +525,7 @@ def main():
         },
         "genomes": genomes,
         "grouping_values": {primary_col: primary_order, subgroup_col: subgroup_order},
+        "group_colors": group_colors,
         "qc": qc,
         "property_stats": property_stats,
         "cds_property_stats": cds_property_stats,

@@ -26,6 +26,14 @@ rule dashboard_data:
     Snakefile's SENSITIVITY_*/GROUP_VALUE_ORDER), nothing hardcoded here.
     DASHBOARD_SAMPLE_PER_GENOME/SEED are config.yaml's dashboard: block
     (Snakefile).
+
+    primary_colors/subgroup_colors pass through config.yaml's optional
+    group_colors: block (Snakefile's GROUP_COLORS) as "value=#hexcolor"
+    tokens -- one map per grouping column, each optional and independently
+    overridable. A column (or a value within it) missing from group_colors
+    just means build_dashboard_data.py leaves that value uncolored in the
+    payload, and the dashboard JS's existing programmatic palette fills it
+    in, same fallback discipline as GROUP_VALUE_ORDER above.
     """
     input:
         protein=OUTDIR + "/summaries/master_protein_table.csv",
@@ -43,6 +51,8 @@ rule dashboard_data:
         subgroup_column=SENSITIVITY_SUBGROUP_COLUMN,
         primary_order=GROUP_VALUE_ORDER.get(SENSITIVITY_PRIMARY_GROUPING, []),
         subgroup_order=GROUP_VALUE_ORDER.get(SENSITIVITY_SUBGROUP_COLUMN, []),
+        primary_colors=[f"{v}={c}" for v, c in GROUP_COLORS.get(SENSITIVITY_PRIMARY_GROUPING, {}).items()],
+        subgroup_colors=[f"{v}={c}" for v, c in GROUP_COLORS.get(SENSITIVITY_SUBGROUP_COLUMN, {}).items()],
         exclude_properties=VISUALS_EXCLUDE_PROPERTIES,
         sample_per_genome=DASHBOARD_SAMPLE_PER_GENOME,
         sample_seed=DASHBOARD_SAMPLE_SEED,
@@ -56,6 +66,7 @@ rule dashboard_data:
         "--sensitivity-leave-one-out {input.sensitivity} "
         "--primary-grouping {params.primary_grouping} --subgroup-column {params.subgroup_column} "
         "--primary-order {params.primary_order} --subgroup-order {params.subgroup_order} "
+        "--primary-colors {params.primary_colors} --subgroup-colors {params.subgroup_colors} "
         "--exclude-properties {params.exclude_properties} "
         "--sample-per-genome {params.sample_per_genome} --sample-seed {params.sample_seed} "
         "--output {output}"

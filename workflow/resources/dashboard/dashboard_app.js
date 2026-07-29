@@ -14,10 +14,20 @@
   var PALETTE_PRIMARY = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
   var PALETTE_SUBGROUP = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#e6ab02", "#a6761d", "#666666"];
 
-  var primaryColor = {};
-  PRIMARY_VALUES.forEach(function (v, i) { primaryColor[v] = PALETTE_PRIMARY[i % PALETTE_PRIMARY.length]; });
-  var subgroupColor = {};
-  SUBGROUP_VALUES.forEach(function (v, i) { subgroupColor[v] = PALETTE_SUBGROUP[i % PALETTE_SUBGROUP.length]; });
+  // CONFIGURED_COLORS is config.yaml's optional group_colors: block, passed
+  // through in the payload -- a {groupingCol: {value: hexcolor}} map that
+  // may be empty, or only cover some values/columns. buildColorMap fills in
+  // any gap from the programmatic palette, same fallback discipline as
+  // group_value_order elsewhere in this file.
+  var CONFIGURED_COLORS = DATA.group_colors || {};
+  function buildColorMap(values, palette, groupingCol) {
+    var configured = CONFIGURED_COLORS[groupingCol] || {};
+    var map = {};
+    values.forEach(function (v, i) { map[v] = configured[v] || palette[i % palette.length]; });
+    return map;
+  }
+  var primaryColor = buildColorMap(PRIMARY_VALUES, PALETTE_PRIMARY, PRIMARY);
+  var subgroupColor = buildColorMap(SUBGROUP_VALUES, PALETTE_SUBGROUP, SUBGROUP);
   var genomeColor = {};
   GENOMES.forEach(function (g) { genomeColor[g.genome] = subgroupColor[g[SUBGROUP]]; });
 
@@ -295,6 +305,17 @@
     });
   }
 
+  // Box and violin traces both carry the full precomputed stat pack
+  // (q1/median/q3/lowerfence/upperfence/mean) so the box/whiskers still
+  // draw from the exact underlying numbers -- this hovertemplate only
+  // changes what the TOOLTIP shows on top of that, trimming the default
+  // 7-line min/q1/median/mean/q3/max(/sd) stack down to just min/median/
+  // max. lowerfence/upperfence are the actual whisker ends as plotted
+  // (we set them directly from the exact min/max, not a computed
+  // 1.5*IQR fence), so they're the correct "min"/"max" hover fields, not
+  // q1/q3. One shared template for both trace types so they stay in sync.
+  var BOX_HOVERTEMPLATE = "<b>%{fullData.name}</b><br>Min: %{lowerfence:.4g}<br>Median: %{median:.4g}<br>Max: %{upperfence:.4g}<extra></extra>";
+
   // ---- shared render for box / violin / histogram / density ----------
   function renderDistribution(containerId, captionId, table, prop, mode, plotType) {
     if (plotType === "histogram_facet" || plotType === "density_facet") {
@@ -314,6 +335,7 @@
           q1: [s.q1], median: [s.median], q3: [s.q3],
           lowerfence: [s.min], upperfence: [s.max], mean: [s.mean],
           boxpoints: false, marker: { color: colorForMode(mode, g) }, showlegend: false,
+          hovertemplate: BOX_HOVERTEMPLATE,
         });
       });
     } else if (plotType === "violin") {
@@ -324,6 +346,7 @@
           type: "violin", y: vals, name: String(g), x0: String(g),
           box: { visible: true }, meanline: { visible: true }, points: false,
           marker: { color: colorForMode(mode, g) }, line: { color: colorForMode(mode, g) }, showlegend: false,
+          hovertemplate: BOX_HOVERTEMPLATE,
         });
       });
     } else if (plotType === "histogram") {
@@ -522,7 +545,28 @@
     effOrderedRows = rows.slice().reverse(); // Plotly draws horizontal bars bottom-to-top
     var labels = effOrderedRows.map(function (r) { return r.property + " (" + r.table + ")"; });
     var values = effOrderedRows.map(function (r) { return r.rank_biserial; });
-    var colors = values.map(function (v) { return v < 0 ? "#d62728" : "#1f77b4"; });
+
+    // The primary grouping's comparison always fixes group_a/group_b to the
+    // same two values in the same order (effect_sizes.py's
+    // itertools.combinations over resolve_group_order's ordered group
+    // list), so for that one comparison a bar's sign maps onto a specific
+    // group identity and can be colored by that group's configured/palette
+    // color instead of a plain sign-based red/blue. Guarded to exactly two
+    // values -- with more than two, "positive" no longer means one fixed
+    // group, so we fall back to sign-based coloring same as any subgroup
+    // pairwise comparison (where group_a's identity changes per pair).
+    var isPrimaryTwoValue = effGrouping.value === "primary" && PRIMARY_VALUES.length === 2;
+    var colors, legendText;
+    if (isPrimaryTwoValue) {
+      var posGroup = PRIMARY_VALUES[1], negGroup = PRIMARY_VALUES[0];
+      colors = values.map(function (v) { return v < 0 ? primaryColor[negGroup] : primaryColor[posGroup]; });
+      legendText = "Bar color: " + negGroup + " = " + primaryColor[negGroup] + " (negative), " +
+        posGroup + " = " + primaryColor[posGroup] + " (positive).";
+    } else {
+      colors = values.map(function (v) { return v < 0 ? "#d62728" : "#1f77b4"; });
+      legendText = "Bar color: negative = red, positive = blue.";
+    }
+    document.getElementById("effColorLegend").innerHTML = legendText;
 
     var trace = { type: "bar", orientation: "h", x: values, y: labels, marker: { color: colors } };
     var layout = {
