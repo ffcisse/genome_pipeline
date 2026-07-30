@@ -208,6 +208,8 @@ Tab-separated, one row per genome:
 | `name` | no | Free-text display name, not used in any computation. |
 | *(two grouping columns)* | **yes** | Column names and values are fully configurable — see below. |
 
+**Note:** `config/genomes.tsv` must be tab-separated — if you're editing in vim, watch for auto-indent/space conversion
+
 **Groupings come from `config/genomes.tsv`, not from code.** Give each genome's row whatever label
 columns describe your study, then tell the pipeline which two of those columns to use for the
 built-in statistics via `config.yaml`'s `sensitivity.primary_grouping`/`subgroup_column`:
