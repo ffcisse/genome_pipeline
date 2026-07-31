@@ -258,6 +258,15 @@ def aggregation_features(seq: str, window: int = 5, hotspot_threshold: float = -
         sum(a3v_values[i - half : i + half + 1]) / window for i in range(half, n - half)
     ]
     if not a4v_values:
+        # range(half, n - half) is empty for n <= 2*half (n < 5 residues at
+        # the default window=5) -- no full window fits inside a sequence
+        # this short, so the windowed metrics are genuinely undefined, not
+        # missing due to a bug. Returning None (-> NaN downstream) here is
+        # intentional and correct; agg_mean_a3v is unwindowed and still
+        # computed above. Consumers that build a distance/correlation
+        # matrix over these columns (e.g. plot_clustering.py) are
+        # responsible for handling these NaNs before scipy sees them --
+        # don't paper over it by inventing a fake value here.
         return pd.Series(
             {
                 "agg_mean_a3v": agg_mean_a3v,

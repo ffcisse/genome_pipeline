@@ -574,6 +574,18 @@ contribution by dropping it and recomputing:
 - **`parse`'s `.parsed.done` marker is vestigial** — it's still produced (a leftover
   from the original Phase 0 scaffold), but nothing downstream reads it anymore; `protein_properties`/
   `cds_properties` read the real parsed tables directly.
+- **Very short proteins produce NaN for the windowed aggregation metrics, by design.**
+  `agg_Na4vSS`/`agg_hotspot_fraction` (`protein_properties.py`'s `aggregation_features`) are AGGRESCAN-
+  style windowed scores (default window=5); a protein shorter than the window has no full window to
+  slide, so these two columns are `NaN` for it (`agg_mean_a3v`, which isn't windowed, is still
+  computed). This is correct behavior, not a bug — any genome set with short predicted proteins can hit
+  it, not just a particular dataset. `plot_clustering.py` handles it generically before it can reach
+  `scipy.cluster.hierarchy.linkage()`: `correlation_heatmap` drops affected protein rows (negligible at
+  real dataset sizes — e.g. 1 of 61,349 proteins in the shipped red-algae example), and
+  `hierarchical_heatmap` drops any property column whose genome-level z-score comes out non-finite
+  (missing genome median, or zero variance across genomes) rather than fabricate a value at that
+  coarser, few-rows-per-genome granularity. Both drops are logged (`WARNING: ...`) so a future NaN from
+  a real upstream bug won't disappear silently.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
