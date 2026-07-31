@@ -16,6 +16,7 @@ other figure, for whatever grouping values are actually present.
 
 import argparse
 
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from visuals_utils import group_order_and_colors, property_columns, save_figure, setup_style
@@ -26,6 +27,29 @@ def hierarchical_heatmap(species_df, props, primary_grouping, subgroup_column, p
     matrix = indexed[[f"{p}_median" for p in props]].copy()
     matrix.columns = props
     z = (matrix - matrix.mean()) / matrix.std()
+
+    # scipy's linkage() (called inside sns.clustermap) requires every
+    # distance to be finite, and a property's z-scored column can be
+    # non-finite two different ways at this genome-level granularity: (a)
+    # a genome's own median for that property is missing -- e.g. every
+    # protein in that genome was too short for a windowed metric like
+    # AGGRESCAN's agg_Na4vSS/agg_hotspot_fraction to be defined (see
+    # protein_properties.py's aggregation_features) -- or (b) the median is
+    # identical across every genome in this set, so std == 0 and the
+    # z-score is 0/0. Either way the column carries no usable clustering
+    # signal (missing, or zero variance -> zero information), so we drop
+    # just that property rather than fabricate a value: with only a
+    # handful of genomes as rows here, imputing a genome's data point is a
+    # far less defensible fabrication than dropping one dimension out of a
+    # >20-property feature set. Logged rather than silent so a future NaN
+    # here (e.g. a real upstream bug, not this known short-sequence
+    # edge case) doesn't disappear unnoticed.
+    bad_cols = z.columns[~np.isfinite(z).all()]
+    if len(bad_cols) > 0:
+        for c in bad_cols:
+            reason = "zero variance across genomes" if matrix[c].std() == 0 else "missing genome-level median"
+            print(f"WARNING: hierarchical_heatmap: dropping property '{c}' from clustering ({reason}, std={matrix[c].std():.4g}, NaN genomes={matrix[c].isna().sum()}/{len(matrix)})")
+        z = z.drop(columns=bad_cols)
 
     row_colors = pd.DataFrame(
         {
@@ -50,7 +74,20 @@ def hierarchical_heatmap(species_df, props, primary_grouping, subgroup_column, p
 
 
 def correlation_heatmap(df, props, output_dir, name):
-    corr = df[props].corr(method="spearman")
+    data = df[props]
+    incomplete = data.isna().any(axis=1)
+    if incomplete.any():
+        nan_cols = data.columns[data.isna().any()].tolist()
+        print(f"WARNING: correlation_heatmap: dropping {incomplete.sum()}/{len(data)} protein rows with a NaN in {nan_cols} before computing correlations (e.g. AGGRESCAN's windowed agg_Na4vSS/agg_hotspot_fraction are undefined for very short sequences -- see protein_properties.py's aggregation_features)")
+        data = data.loc[~incomplete]
+
+    # Dropping incomplete rows up front (rather than relying on pandas'
+    # default pairwise-complete-observations behavior in .corr()) keeps
+    # every pairwise correlation computed from the exact same set of
+    # proteins, and guarantees the resulting matrix -- which sns.clustermap
+    # clusters via scipy's linkage() -- can't itself contain a NaN cell
+    # from an undersized/degenerate pairwise overlap.
+    corr = data.corr(method="spearman")
     side = max(8, len(props) * 0.4)
     g = sns.clustermap(
         corr,
